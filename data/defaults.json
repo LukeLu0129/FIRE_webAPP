@@ -1,0 +1,17 @@
+{
+    "userSettings": { "name": "", "isResident": true, "hasPrivateHealth": false, "hasHecsDebt": false, "isRenting": false },
+    "incomes": [{ "id": "1", "name": "Primary Salary", "type": "salary", "amount": 120000, "freqValue": 1, "freqUnit": "year", "taxTreatment": "tft", "salaryPackaging": 0, "adminFee": 0, "superRate": 11.5, "paygOverride": null }],
+    "deductions": [],
+    "expenses": [
+      { "id": "1", "name": "Mortgage Repayment", "amount": 3500, "freqValue": 1, "freqUnit": "month", "category": "Mortgage/Rent", "isMortgageLink": true },
+      { "id": "2", "name": "Groceries", "amount": 200, "freqValue": 1, "freqUnit": "week", "category": "Food", "isMortgageLink": false }
+    ],
+    "expenseCategories": ["Mortgage/Rent", "Food", "Transport", "Utilities", "Insurance", "Health", "Entertainment", "Debt", "Savings", "Other"],
+    "assets": [
+      { "id": "1", "name": "Vanguard ETF (VGS)", "value": 50000, "category": "Shares", "growthRate": 7.0 },
+      { "id": "2", "name": "Savings Account", "value": 20000, "category": "Cash", "growthRate": 4.5 }
+    ],
+    "assetCategories": ["Shares", "Cash", "Crypto", "Property (Inv)", "Collectibles", "Other"],
+    "mortgageParams": { "principal": 500000, "offsetBalance": 20000, "interestRate": 6.0, "loanTermYears": 30, "userRepayment": null, "repaymentFreq": "month", "propertyValue": 600000, "growthRate": 3.0, "useBudgetRepayment": true, "useSurplus": false },
+    "fireTargetOverride": null
+  }
