@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Activity, Settings, Wallet, CreditCard, Repeat, Home, TrendingUp } from 'lucide-react';
 import { AppState, UserProfile } from './types';
 import { calculateAnnualAmount, calculateTax } from './services/mathService';
-import { defaultState } from './data/defaults';
+
+// Import Defaults from TS constant
+import { INITIAL_DEFAULT_STATE } from './data/defaults';
 
 // Import Components
 import { IncomeTab } from './components/IncomeTab';
@@ -17,13 +19,26 @@ import { SettingsModal } from './components/SettingsModal';
 const useLocalStorageState = () => {
   const [profiles, setProfiles] = useState<UserProfile[]>([{ id: 'default', name: 'Default Profile' }]);
   const [currentProfileId, setCurrentProfileId] = useState('default');
-  const [state, setState] = useState<AppState>(defaultState);
+  const [state, setState] = useState<AppState>(INITIAL_DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
+
+  const resetData = () => {
+    if (window.confirm("Are you sure you want to reset all data to defaults? This cannot be undone.")) {
+       localStorage.clear();
+       window.location.reload();
+    }
+  };
 
   // Load Profiles
   useEffect(() => {
     const storedProfiles = localStorage.getItem('fire_planner_profiles');
-    if (storedProfiles) setProfiles(JSON.parse(storedProfiles));
+    if (storedProfiles) {
+      try {
+        setProfiles(JSON.parse(storedProfiles));
+      } catch (e) {
+        console.error("Failed to parse profiles", e);
+      }
+    }
     
     const lastProfile = localStorage.getItem('fire_planner_current_profile_id');
     if (lastProfile) setCurrentProfileId(lastProfile);
@@ -37,11 +52,15 @@ const useLocalStorageState = () => {
       const stored = localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        setState(prev => ({ ...defaultState, ...parsed })); // Merge to ensure new fields
+        // Merge with defaults to ensure any new keys in latest version exist
+        setState(prev => ({ ...INITIAL_DEFAULT_STATE, ...parsed }));
       } else {
-        setState(defaultState);
+        setState(INITIAL_DEFAULT_STATE);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error("Failed to load profile data", e); 
+      setState(INITIAL_DEFAULT_STATE);
+    }
     setLoading(false);
   }, [currentProfileId]);
 
@@ -58,13 +77,13 @@ const useLocalStorageState = () => {
     localStorage.setItem('fire_planner_current_profile_id', currentProfileId);
   }, [profiles, currentProfileId]);
 
-  return { state, setState, loading, profiles, setProfiles, currentProfileId, setCurrentProfileId };
+  return { state, setState, loading, profiles, setProfiles, currentProfileId, setCurrentProfileId, resetData };
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('income');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const { state, setState, loading, profiles, setProfiles, currentProfileId, setCurrentProfileId } = useLocalStorageState();
+  const { state, setState, loading, profiles, setProfiles, currentProfileId, setCurrentProfileId, resetData } = useLocalStorageState();
 
   // Basic Calculations for Passing Down High-Level Data
   const annualIncomes = state.incomes.map(item => {
@@ -117,6 +136,7 @@ export default function App() {
            setCurrentProfileId={setCurrentProfileId}
            state={state}
            setState={setState}
+           resetData={resetData}
         />
         
         <header className="flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-4 flex items-center justify-between z-20 transition-colors">

@@ -1,121 +1,121 @@
 
 import { AppState } from '../types';
 
-export const defaultState: AppState = {
-  userSettings: {
-    name: "",
-    isResident: true,
-    hasPrivateHealth: true,
-    hasHecsDebt: true,
-    isRenting: false,
-    darkMode: false
+export const INITIAL_DEFAULT_STATE: AppState = {
+  "userSettings": {
+    "name": "",
+    "isResident": true,
+    "hasPrivateHealth": true,
+    "hasHecsDebt": true,
+    "isRenting": false,
+    "darkMode": false
   },
-  incomes: [
+  "incomes": [
     {
-      id: "1",
-      name: "Corporate Salary",
-      type: "salary",
-      amount: 145000,
-      freqValue: 1,
-      freqUnit: "year",
-      taxTreatment: "tft",
-      salaryPackaging: 0,
-      salarySacrifice: 0,
-      adminFee: 0,
-      superRate: 11.5,
-      paygOverride: null
+      "id": "1",
+      "name": "Corporate Salary",
+      "type": "salary",
+      "amount": 100000,
+      "freqValue": 1,
+      "freqUnit": "year",
+      "taxTreatment": "tft",
+      "salaryPackaging": 0,
+      "salarySacrifice": 0,
+      "adminFee": 0,
+      "superRate": 11.5,
+      "paygOverride": null
     },
     {
-      id: "2",
-      name: "Side Hustle",
-      type: "abn",
-      amount: 500,
-      freqValue: 1,
-      freqUnit: "month",
-      taxTreatment: "abn",
-      salaryPackaging: 0,
-      salarySacrifice: 0,
-      adminFee: 0,
-      superRate: 0,
-      paygOverride: null
+      "id": "2",
+      "name": "Side Hustle",
+      "type": "abn",
+      "amount": 500,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "taxTreatment": "abn",
+      "salaryPackaging": 0,
+      "salarySacrifice": 0,
+      "adminFee": 0,
+      "superRate": 0,
+      "paygOverride": null
     }
   ],
-  deductions: [],
-  expenses: [
+  "deductions": [],
+  "expenses": [
     {
-      id: "1",
-      name: "Mortgage / Rent (Inner North)",
-      amount: 3800,
-      freqValue: 1,
-      freqUnit: "month",
-      category: "Mortgage/Rent",
-      isMortgageLink: true
+      "id": "1",
+      "name": "Mortgage / Rent",
+      "amount": 3000,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Mortgage/Rent",
+      "isMortgageLink": true
     },
     {
-      id: "2",
-      name: "Woolies / Coles",
-      amount: 250,
-      freqValue: 1,
-      freqUnit: "week",
-      category: "Food",
-      isMortgageLink: false
+      "id": "2",
+      "name": "Woolies / Coles",
+      "amount": 250,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Food",
+      "isMortgageLink": false
     },
     {
-      id: "3",
-      name: "Melbourne Coffee",
-      amount: 35,
-      freqValue: 1,
-      freqUnit: "week",
-      category: "Food",
-      isMortgageLink: false
+      "id": "3",
+      "name": "Melbourne Coffee",
+      "amount": 35,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Food",
+      "isMortgageLink": false
     },
     {
-      id: "4",
-      name: "Myki / Uber",
-      amount: 60,
-      freqValue: 1,
-      freqUnit: "week",
-      category: "Transport",
-      isMortgageLink: false
+      "id": "4",
+      "name": "Myki / Uber",
+      "amount": 60,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Transport",
+      "isMortgageLink": false
     },
     {
-      id: "5",
-      name: "Electricity & Gas",
-      amount: 250,
-      freqValue: 1,
-      freqUnit: "month",
-      category: "Utilities",
-      isMortgageLink: false
+      "id": "5",
+      "name": "Electricity & Gas",
+      "amount": 250,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Utilities",
+      "isMortgageLink": false
     },
     {
-      id: "6",
-      name: "NBN Internet",
-      amount: 89,
-      freqValue: 1,
-      freqUnit: "month",
-      category: "Utilities",
-      isMortgageLink: false
+      "id": "6",
+      "name": "NBN Internet",
+      "amount": 89,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Utilities",
+      "isMortgageLink": false
     },
     {
-      id: "7",
-      name: "Friday Drinks / Dining",
-      amount: 200,
-      freqValue: 1,
-      freqUnit: "week",
-      category: "Entertainment",
-      isMortgageLink: false
+      "id": "7",
+      "name": "Friday Drinks / Dining",
+      "amount": 200,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Entertainment",
+      "isMortgageLink": false
     },
     {
-      id: "8",
-      name: "Gym Membership",
-      amount: 50,
-      freqValue: 2,
-      freqUnit: "week",
-      category: "Health",
-      isMortgageLink: false
+      "id": "8",
+      "name": "Gym Membership",
+      "amount": 50,
+      "freqValue": 2,
+      "freqUnit": "week",
+      "category": "Health",
+      "isMortgageLink": false
     }
   ],
-  expenseCategories: [
+  "expenseCategories": [
     "Mortgage/Rent",
     "Food",
     "Transport",
@@ -127,13 +127,13 @@ export const defaultState: AppState = {
     "Savings",
     "Other"
   ],
-  accounts: [
-    { id: "1", name: "Daily Spend", color: "#3b82f6" },
-    { id: "2", name: "Bills & Rent", color: "#f59e0b" },
-    { id: "3", name: "Mojo / Savings", color: "#10b981" },
-    { id: "4", name: "Splurge", color: "#ec4899" }
+  "accounts": [
+    { "id": "1", "name": "Daily Spend", "color": "#3b82f6" },
+    { "id": "2", "name": "Bills & Rent", "color": "#f59e0b" },
+    { "id": "3", "name": "Mojo / Savings", "color": "#10b981" },
+    { "id": "4", "name": "Splurge", "color": "#ec4899" }
   ],
-  categoryMap: {
+  "categoryMap": {
     "Mortgage/Rent": "2",
     "Food": "1",
     "Transport": "1",
@@ -145,30 +145,30 @@ export const defaultState: AppState = {
     "Savings": "3",
     "Other": "1"
   },
-  assets: [
+  "assets": [
     {
-      id: "1",
-      name: "Vanguard ETF (VGS)",
-      value: 65000,
-      category: "Shares",
-      growthRate: 8.0
+      "id": "1",
+      "name": "Vanguard ETF (VGS)",
+      "value": 65000,
+      "category": "Shares",
+      "growthRate": 8.0
     },
     {
-      id: "2",
-      name: "HISA (Savings)",
-      value: 25000,
-      category: "Cash",
-      growthRate: 4.75
+      "id": "2",
+      "name": "HISA (Savings)",
+      "value": 25000,
+      "category": "Cash",
+      "growthRate": 4.75
     },
     {
-      id: "3",
-      name: "Superannuation",
-      value: 120000,
-      category: "Other",
-      growthRate: 7.5
+      "id": "3",
+      "name": "Superannuation",
+      "value": 120000,
+      "category": "Other",
+      "growthRate": 7.5
     }
   ],
-  assetCategories: [
+  "assetCategories": [
     "Shares",
     "Cash",
     "Crypto",
@@ -176,17 +176,17 @@ export const defaultState: AppState = {
     "Collectibles",
     "Other"
   ],
-  mortgageParams: {
-    principal: 650000,
-    offsetBalance: 25000,
-    interestRate: 6.19,
-    loanTermYears: 30,
-    userRepayment: null,
-    repaymentFreq: "month",
-    propertyValue: 850000,
-    growthRate: 4.5,
-    useBudgetRepayment: true,
-    useSurplus: false
+  "mortgageParams": {
+    "principal": 480000,
+    "offsetBalance": 80000,
+    "interestRate": 6.00,
+    "loanTermYears": 30,
+    "userRepayment": null,
+    "repaymentFreq": "month",
+    "propertyValue": 650000,
+    "growthRate": 3.5,
+    "useBudgetRepayment": true,
+    "useSurplus": false
   },
-  fireTargetOverride: null
+  "fireTargetOverride": null
 };

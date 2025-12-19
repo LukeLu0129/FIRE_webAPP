@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Settings, Trash2, X, BookOpen, Moon, Sun, Calculator } from 'lucide-react';
+import { Settings, Trash2, X, BookOpen, Moon, Sun, Calculator, RefreshCw } from 'lucide-react';
 import { UserProfile, AppState } from '../types';
 
 const AdvancedVariablesModal = ({ isOpen, onClose }: any) => {
@@ -66,9 +66,10 @@ interface SettingsProps {
     setCurrentProfileId: (id: string) => void;
     state: AppState;
     setState: (s: AppState | ((prev: AppState) => AppState)) => void;
+    resetData: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, profiles, setProfiles, currentProfileId, setCurrentProfileId, state, setState }) => {
+export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, profiles, setProfiles, currentProfileId, setCurrentProfileId, state, setState, resetData }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
 
@@ -144,9 +145,18 @@ export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, profil
 
             <hr className="border-slate-100 dark:border-slate-800" />
 
-            <button onClick={() => setShowAdvanced(true)} className="w-full py-2 border border-slate-300 dark:border-slate-600 rounded text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
-               View Math & Assumptions
-            </button>
+            <div className="space-y-2">
+                <button onClick={() => setShowAdvanced(true)} className="w-full py-2 border border-slate-300 dark:border-slate-600 rounded text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
+                    View Math & Assumptions
+                </button>
+                
+                <button 
+                    onClick={resetData} 
+                    className="w-full py-2 flex items-center justify-center gap-2 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+                >
+                    <RefreshCw className="w-4 h-4" /> Reset App Data
+                </button>
+            </div>
           </div>
         </div>
       </div>

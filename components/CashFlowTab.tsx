@@ -92,16 +92,25 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
   const getAnnualCost = (item: any) => (item.amount * FREQ_MULTIPLIERS[item.freqUnit]) / item.freqValue;
   
   // Aggregate expenses by category
-  const expensesByCategory: Record<string, number> = {};
-  state.expenses.forEach(exp => {
-    expensesByCategory[exp.category] = (expensesByCategory[exp.category] || 0) + getAnnualCost(exp);
-  });
+  const expensesByCategory = useMemo(() => {
+    const sums: Record<string, number> = {};
+    state.expenses.forEach(exp => {
+      sums[exp.category] = (sums[exp.category] || 0) + getAnnualCost(exp);
+    });
+    return sums;
+  }, [state.expenses]);
   
   const totalExpenses = Object.values(expensesByCategory).reduce((a, b) => a + b, 0);
   const surplusAnnual = Math.max(0, netIncomeAnnual - totalExpenses);
 
-  // Identify unmapped categories
-  const unmappedCategories = state.expenseCategories.filter(cat => !state.categoryMap[cat]);
+  // Identify categories that are either $0 or not mapped to any account
+  const unmappedCategories = useMemo(() => {
+    return state.expenseCategories.filter(cat => {
+      const amount = expensesByCategory[cat] || 0;
+      return amount <= 0 || !state.categoryMap[cat];
+    });
+  }, [state.expenseCategories, expensesByCategory, state.categoryMap]);
+
   // Identify active categories (those with > 0 expense)
   const activeCategories = state.expenseCategories.filter(c => (expensesByCategory[c] || 0) > 0);
 
@@ -176,8 +185,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
     // Critical: The order here dictates vertical stacking because we set iterations: 0
 
     // A. Surplus Intermediate (Top of Col 2)
-    // We add an intermediate node to ensure Surplus flows all the way to the right column,
-    // aligning better with the chart structure.
     let surplusMiddle = '';
     let surplusRight = '';
 
@@ -254,7 +261,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                     color: state.userSettings.darkMode ? '#fff' : '#1e293b',
                     bold: true
                 },
-                nodePadding: 20, // Increased padding to prevent overlap
+                nodePadding: 20, 
                 width: 14,
                 interactivity: true,
             },
@@ -262,7 +269,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                 colorMode: 'gradient',
                 fillOpacity: 0.35
             },
-            iterations: 0, // FORCE INPUT ORDER
+            iterations: 0, 
         },
         backgroundColor: 'transparent',
         tooltip: { isHtml: true, textStyle: { fontSize: 12 } }
@@ -347,7 +354,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
         const newAccounts = [...state.accounts];
         const [movedAccount] = newAccounts.splice(sourceIndex, 1);
         
-        // If dropping 'after last' logic needed, we handle it separately
         newAccounts.splice(targetIndex, 0, movedAccount);
         
         setState((s) => ({ ...s, accounts: newAccounts }));
@@ -402,24 +408,32 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
             </h3>
             <div className="flex flex-wrap gap-2 min-h-[30px]">
                 {unmappedCategories.length === 0 && <span className="text-[10px] text-slate-400 italic">All categories assigned!</span>}
-                {unmappedCategories.map(cat => (
-                    <div 
-                        key={cat}
-                        draggable
-                        onDragStart={(e) => handleDragStartCategory(e, cat)}
-                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[10px] px-2 py-1 rounded-md shadow-sm cursor-grab active:cursor-grabbing flex items-center gap-1 hover:border-blue-400 hover:shadow-md transition-all select-none"
-                    >
-                       <GripVertical className="w-3 h-3 text-slate-400" />
-                       {cat}
-                    </div>
-                ))}
+                {unmappedCategories.map(cat => {
+                    const catAmount = (expensesByCategory[cat] || 0) * displayFactor;
+                    return (
+                        <div 
+                            key={cat}
+                            draggable
+                            onDragStart={(e) => handleDragStartCategory(e, cat)}
+                            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[10px] px-2 py-1 rounded-md shadow-sm cursor-grab active:cursor-grabbing flex items-center gap-2 hover:border-blue-400 hover:shadow-md transition-all select-none"
+                        >
+                        <GripVertical className="w-3 h-3 text-slate-400" />
+                        <span className="font-medium">{cat}</span>
+                        <span className="text-[9px] bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500 dark:text-slate-400">{formatCurrency(catAmount)}</span>
+                        </div>
+                    );
+                })}
             </div>
          </div>
 
          {/* Bucket Manager */}
          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10 pr-1">
             {state.accounts.map((acc, idx) => {
-                const assignedCats = Object.keys(state.categoryMap).filter(k => state.categoryMap[k] === acc.id);
+                // Only show categories that have a balance > 0 in assignedCats
+                const assignedCats = Object.keys(state.categoryMap).filter(k => 
+                    state.categoryMap[k] === acc.id && (expensesByCategory[k] || 0) > 0
+                );
+                
                 const isDragTarget = dragOverIndex === idx;
                 
                 // Get Total Sum for this bucket
@@ -435,19 +449,16 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                     onDrop={(e) => handleDropOnBucket(e, acc.id, idx)}
                     className={`bg-white dark:bg-slate-900 p-3 rounded-xl border shadow-sm group hover:border-blue-200 dark:hover:border-blue-800 transition-colors relative border-slate-200 dark:border-slate-800`}
                 >
-                    {/* Visual Line Indicator for Drag & Drop */}
                     {isDragTarget && <div className="absolute -top-1.5 left-0 right-0 h-1 bg-blue-500 rounded-full z-10 pointer-events-none" />}
 
                     {/* Bucket Header */}
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2 flex-1 overflow-hidden">
                             
-                            {/* Drag Handle for Reordering */}
                             <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 p-1">
-                            <GripVertical className="w-4 h-4"/>
+                                <GripVertical className="w-4 h-4"/>
                             </div>
 
-                            {/* Color Picker Trigger */}
                             <div className="relative shrink-0">
                                 <button 
                                     onClick={(e) => {
@@ -458,7 +469,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                                     style={{ backgroundColor: acc.color }}
                                 />
                                 
-                                {/* Color Picker Popup */}
                                 {activeColorPicker === acc.id && (
                                     <div ref={colorPickerRef} className="absolute top-6 left-0 z-50 bg-white dark:bg-slate-800 p-3 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 w-48 animate-in fade-in zoom-in-95 duration-200">
                                         <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2">Select Color</h4>
@@ -518,40 +528,42 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                         </button>
                     </div>
 
-                    {/* Drop Zone for Categories */}
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 border border-slate-100 dark:border-slate-700 min-h-[50px] transition-colors">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 border border-slate-100 dark:border-slate-700 min-h-[36px] transition-colors">
                         {assignedCats.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-[10px] text-center py-2 border border-dashed border-slate-200 dark:border-slate-700 rounded">
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-[10px] text-center py-1 border border-dashed border-slate-200 dark:border-slate-700 rounded">
                                 <span>Drop categories here</span>
                             </div>
                         ) : (
                             <div className="flex flex-wrap gap-1.5">
-                                {assignedCats.map(cat => (
-                                    <div 
-                                        key={cat} 
-                                        draggable
-                                        onDragStart={(e) => {
-                                            e.stopPropagation(); // Don't drag the bucket
-                                            handleDragStartCategory(e, cat);
-                                        }}
-                                        className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-slate-700 dark:text-slate-200 shadow-sm cursor-grab active:cursor-grabbing select-none group/tag"
-                                    >
-                                        <span>{cat}</span>
-                                        <button 
-                                            onClick={() => updateCategoryMap(cat, null)}
-                                            className="text-slate-300 hover:text-red-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                                {assignedCats.map(cat => {
+                                    const catAmount = (expensesByCategory[cat] || 0) * displayFactor;
+                                    return (
+                                        <div 
+                                            key={cat} 
+                                            draggable
+                                            onDragStart={(e) => {
+                                                e.stopPropagation(); 
+                                                handleDragStartCategory(e, cat);
+                                            }}
+                                            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-slate-700 dark:text-slate-200 shadow-sm cursor-grab active:cursor-grabbing select-none group/tag"
                                         >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
+                                            <span className="font-medium">{cat}</span>
+                                            <span className="text-[9px] font-bold text-slate-400">{formatCurrency(catAmount)}</span>
+                                            <button 
+                                                onClick={() => updateCategoryMap(cat, null)}
+                                                className="text-slate-300 hover:text-red-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
                 </div>
             )})}
             
-            {/* Drop Zone for End of List */}
             {state.accounts.length > 0 && (
                 <div 
                     onDragOver={handleDragOverEnd}
@@ -560,7 +572,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                 />
             )}
 
-            {/* Create New Bucket */}
             <div className="flex gap-2 pt-2">
               <input 
                 className="flex-1 text-xs border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
@@ -597,7 +608,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
              </div>
          </div>
          
-         {/* Simple Legend */}
          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap justify-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center">
              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-500"></div>Income (Grayscale)</div>
              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>Net Pool</div>
