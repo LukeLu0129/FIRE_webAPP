@@ -111,7 +111,7 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
                   onClick={() => setState((s: AppState) => ({...s, userSettings: {...s.userSettings, isRenting: !s.userSettings.isRenting}}))}
                   className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors ${state.userSettings.isRenting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300'}`}
                  >
-                  {state.userSettings.isRenting ? 'I am renting only' : 'I own property(s)'}
+                  {state.userSettings.isRenting ? 'I am renting' : 'I live in PPOR'}
                  </button>
               )}
               {editingId && <button onClick={cancelEdit} className="md:hidden p-2 text-slate-500"><X className="w-6 h-6"/></button>}

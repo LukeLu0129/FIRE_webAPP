@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { DollarSign, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { AppState, FrequencyUnit, IncomeType, TaxTreatment } from '../types';
 import { FREQ_LABELS, FREQ_MULTIPLIERS, formatCurrency } from '../constants';
-import { calculateTax } from '../services/mathService';
+import { calculateNetIncomeBreakdown } from '../services/mathService';
 import { NumberInput } from './NumberInput';
 
 interface Props {
@@ -22,52 +22,11 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
     setShowAdvancedIds(newSet);
   };
 
-  // Logic to prepare totals
-  const annualIncomes = state.incomes.map(item => {
-    const gross = (item.amount * FREQ_MULTIPLIERS[item.freqUnit]) / item.freqValue;
-    const sacrifice = item.salarySacrifice || 0;
-    // Super calculation: (Gross * Rate) + Sacrifice
-    const superAmt = (gross * (item.superRate / 100)) + sacrifice;
-    return { ...item, grossAnnual: gross, superAnnual: superAmt };
-  });
-
-  const totalGrossCash = annualIncomes.reduce((acc, c) => acc + c.grossAnnual, 0);
-  const totalPackaging = annualIncomes.reduce((acc, c) => acc + (c.salaryPackaging || 0), 0);
-  const totalSacrifice = annualIncomes.reduce((acc, c) => acc + (c.salarySacrifice || 0), 0);
-  const totalAdminFees = annualIncomes.reduce((acc, c) => acc + (c.adminFee || 0), 0);
-  const totalDeductions = state.deductions.reduce((acc, c) => acc + c.amount, 0);
-  const totalSuper = annualIncomes.reduce((acc, c) => acc + c.superAnnual, 0);
-
-  // Taxable Income reduces by Packaging AND Sacrifice
-  const taxableIncome = Math.max(0, totalGrossCash - totalPackaging - totalSacrifice - totalAdminFees - totalDeductions);
-  const baseTax = calculateTax(taxableIncome, state.userSettings.isResident, true);
-  
-  let medicare = 0;
-  if (state.userSettings.isResident && taxableIncome > 26000) medicare = taxableIncome * 0.02;
-
-  const reportableFringeBenefits = totalPackaging * 1.8868; 
-  const adjTaxableIncome = taxableIncome + reportableFringeBenefits;
-
-  let mlsRate = 0;
-  if (!state.userSettings.hasPrivateHealth && state.userSettings.isResident) {
-    if (adjTaxableIncome > 151000) mlsRate = 0.015;
-    else if (adjTaxableIncome > 113000) mlsRate = 0.0125;
-    else if (adjTaxableIncome > 97000) mlsRate = 0.01;
-  }
-  const mls = taxableIncome * mlsRate; 
-  
-  let hecs = 0;
-  if (state.userSettings.hasHecsDebt) {
-    if (adjTaxableIncome > 151201) hecs = adjTaxableIncome * 0.10;
-    else if (adjTaxableIncome > 100000) hecs = adjTaxableIncome * 0.06;
-    else if (adjTaxableIncome > 54435) hecs = adjTaxableIncome * 0.01;
-  }
-
-  const totalTax = baseTax + medicare + mls + hecs;
-  
-  // Net Income = Gross - Tax - Admin - Sacrifice (Sacrifice is gone to super, Packaging is kept as 'benefit')
-  const netIncome = totalGrossCash - totalTax - totalAdminFees - totalSacrifice;
+  const breakdown = calculateNetIncomeBreakdown(state);
   const displayFactor = 1 / FREQ_MULTIPLIERS[viewPeriod];
+
+  // Percentage calculations helper
+  const getPct = (val: number) => breakdown.taxableIncome > 0 ? ((val / breakdown.taxableIncome) * 100).toFixed(1) : '0.0';
 
   return (
     <div className="h-full flex flex-col md:flex-row p-4 md:p-6 gap-6 overflow-y-auto">
@@ -79,14 +38,12 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
              <button onClick={() => setState((s: AppState) => ({...s, incomes: [...s.incomes, { id: Date.now().toString(), name: 'New Source', type: 'salary', amount: 0, freqValue: 1, freqUnit: 'year', taxTreatment: 'no-tft', salaryPackaging: 0, salarySacrifice: 0, adminFee: 0, superRate: 11.5, paygOverride: null }]}))} className="text-blue-600 dark:text-blue-400 text-sm flex items-center hover:bg-blue-50 dark:hover:bg-blue-900 px-2 py-1 rounded transition-colors"><Plus className="w-4 h-4 mr-1"/> Add</button>
            </div>
            
-           {/* Scrollable List Area */}
            <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0 custom-scrollbar">
              {state.incomes.map((inc, idx) => (
                <div key={inc.id} className="border border-slate-100 dark:border-slate-800 rounded-lg p-3 bg-slate-50 dark:bg-slate-800 relative group">
                  <button onClick={() => setState((s: AppState) => ({...s, incomes: s.incomes.filter(i => i.id !== inc.id)}))} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 z-10"><Trash2 className="w-4 h-4"/></button>
                  
                  <div className="space-y-3 pr-6 sm:pr-8">
-                    {/* Top Row: Name and Type */}
                     <div className="flex flex-col sm:flex-row gap-2">
                        <input value={inc.name} onChange={e => {
                          const newIncs = [...state.incomes]; newIncs[idx].name = e.target.value; setState({...state, incomes: newIncs});
@@ -105,7 +62,6 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                        </select>
                     </div>
 
-                    {/* Second Row: Amount and Frequency */}
                     <div className="flex flex-wrap items-center gap-2">
                        <div className="relative w-full sm:w-32">
                           <DollarSign className="w-3 h-3 absolute top-2 left-2 text-slate-400"/>
@@ -132,7 +88,6 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                        </div>
                     </div>
                     
-                    {/* Basic Toggles */}
                     <div className="flex flex-wrap gap-2 text-xs items-center pt-1 justify-between">
                         <div className="flex gap-2 items-center">
                             {inc.type !== 'other' && (
@@ -166,7 +121,6 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                         )}
                     </div>
 
-                    {/* Salary Packaging Section (Toggleable) */}
                     {inc.type === 'salary' && showAdvancedIds.has(inc.id) && (
                         <div className="bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded p-2 text-xs space-y-3 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -187,22 +141,6 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                                  <p className="text-[9px] text-slate-400 mt-0.5">Rent, Car, Living Exp</p>
                               </div>
                               <div>
-                                 <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">Salary Sacrifice (Into Super)</label>
-                                 <div className="relative">
-                                    <DollarSign className="w-3 h-3 absolute top-1.5 left-1 text-slate-400"/>
-                                    <NumberInput 
-                                        value={inc.salarySacrifice} 
-                                        onValueChange={(val) => {
-                                            const newIncs = [...state.incomes]; 
-                                            newIncs[idx].salarySacrifice = val; 
-                                            setState({...state, incomes: newIncs});
-                                        }}
-                                        className="w-full pl-4 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
-                                    />
-                                 </div>
-                                 <p className="text-[9px] text-slate-400 mt-0.5">Pre-tax Super addition</p>
-                              </div>
-                              <div className="sm:col-span-2">
                                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">Packaging Admin Fees</label>
                                  <div className="relative">
                                     <DollarSign className="w-3 h-3 absolute top-1.5 left-1 text-slate-400"/>
@@ -216,6 +154,23 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                                         className="w-full pl-4 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
                                     />
                                  </div>
+                                 <p className="text-[9px] text-slate-400 mt-0.5">Salary packaging provider fee</p>
+                              </div>
+                              <div className="sm:col-span-2">
+                                 <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">Salary Sacrifice (Into Super)</label>
+                                 <div className="relative">
+                                    <DollarSign className="w-3 h-3 absolute top-1.5 left-1 text-slate-400"/>
+                                    <NumberInput 
+                                        value={inc.salarySacrifice} 
+                                        onValueChange={(val) => {
+                                            const newIncs = [...state.incomes]; 
+                                            newIncs[idx].salarySacrifice = val; 
+                                            setState({...state, incomes: newIncs});
+                                        }}
+                                        className="w-full pl-4 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
+                                    />
+                                 </div>
+                                 <p className="text-[9px] text-slate-400 mt-0.5">Pre-tax Super addition (Concessional)</p>
                               </div>
                            </div>
                         </div>
@@ -268,40 +223,112 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
 
            <div className="space-y-4 flex-1">
              <div className="flex justify-between items-end">
-               <span className="text-slate-500 dark:text-slate-400 text-sm">Gross Cash Income</span>
-               <span className="text-lg font-semibold dark:text-white">{formatCurrency(totalGrossCash * displayFactor)}</span>
-             </div>
-             {totalPackaging > 0 && (
-                <div className="flex justify-between items-end text-sm text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center gap-1">+ Salary Packaging <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1 rounded text-slate-400">Tax Free</span></span>
-                  <span>{formatCurrency(totalPackaging * displayFactor)}</span>
-                </div>
-             )}
-             {totalSacrifice > 0 && (
-                <div className="flex justify-between items-end text-sm text-purple-600 dark:text-purple-400">
-                  <span>- Salary Sacrifice (to Super)</span>
-                  <span>-{formatCurrency(totalSacrifice * displayFactor)}</span>
-                </div>
-             )}
-             
-             <div className="flex justify-between items-end text-sm text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-               <span>Total Super Contributions</span>
-               <span className="font-bold">{formatCurrency(totalSuper * displayFactor)}</span>
+               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Gross Cash Income</span>
+               <span className="text-lg font-semibold dark:text-white">{formatCurrency(breakdown.totalGrossCash * displayFactor)}</span>
              </div>
              
-             <div className="border-t border-slate-100 dark:border-slate-800 my-2"></div>
+             <div className="space-y-2">
+                {(breakdown.totalPackaging > 0 || breakdown.totalSacrifice > 0 || breakdown.totalAdminFees > 0) && (
+                   <div className="space-y-1">
+                      {breakdown.totalPackaging > 0 && (
+                         <div className="flex justify-between items-end text-xs text-slate-400 italic">
+                           <span>- Salary Packaging (Pre-tax)</span>
+                           <span>-{formatCurrency(breakdown.totalPackaging * displayFactor)}</span>
+                         </div>
+                      )}
+                      {breakdown.totalSacrifice > 0 && (
+                         <div className="flex justify-between items-end text-xs text-purple-400 italic">
+                           <span>- Salary Sacrifice (to Super)</span>
+                           <span>-{formatCurrency(breakdown.totalSacrifice * displayFactor)}</span>
+                         </div>
+                      )}
+                      {breakdown.totalAdminFees > 0 && (
+                         <div className="flex justify-between items-end text-xs text-amber-400 italic">
+                           <span>- Packaging Admin Fees</span>
+                           <span>-{formatCurrency(breakdown.totalAdminFees * displayFactor)}</span>
+                         </div>
+                      )}
+                   </div>
+                )}
+             </div>
 
-             <div className="space-y-2 text-sm text-red-600 dark:text-red-400">
-                <div className="flex justify-between"><span>Income Tax</span><span>-{formatCurrency(baseTax * displayFactor)}</span></div>
-                {totalAdminFees > 0 && <div className="flex justify-between"><span>Packaging Fees</span><span>-{formatCurrency(totalAdminFees * displayFactor)}</span></div>}
-                <div className="flex justify-between"><span>Medicare Levy</span><span>-{formatCurrency(medicare * displayFactor)}</span></div>
-                {mls > 0 && <div className="flex justify-between"><span>Medicare Levy Surcharge</span><span>-{formatCurrency(mls * displayFactor)}</span></div>}
-                {hecs > 0 && <div className="flex justify-between text-orange-600 dark:text-orange-400"><span>HECS Repayment</span><span>-{formatCurrency(hecs * displayFactor)}</span></div>}
+             <div className="flex justify-between items-end border-y border-slate-100 dark:border-slate-800 py-2 bg-slate-50/50 dark:bg-slate-800/20 px-2 rounded">
+               <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">Taxable Income</span>
+               <span className="text-blue-700 dark:text-blue-300 font-bold">{formatCurrency(breakdown.taxableIncome * displayFactor)}</span>
              </div>
+
+             <div className="space-y-3">
+                <div className="flex justify-between items-end text-sm text-red-600 dark:text-red-400">
+                  <div className="flex flex-col">
+                    <span className="font-medium">Income Tax</span>
+                    <span className="text-[10px] opacity-70">({getPct(breakdown.baseTax)}% of taxable)</span>
+                  </div>
+                  <span className="font-medium">-{formatCurrency(breakdown.baseTax * displayFactor)}</span>
+                </div>
+                
+                <div className="flex justify-between items-end text-sm text-red-600 dark:text-red-400">
+                  <div className="flex flex-col">
+                    <span className="font-medium">Medicare Levy</span>
+                    <span className="text-[10px] opacity-70">({getPct(breakdown.medicare)}% of taxable)</span>
+                  </div>
+                  <span className="font-medium">-{formatCurrency(breakdown.medicare * displayFactor)}</span>
+                </div>
+
+                {breakdown.mls > 0 && (
+                   <div className="flex justify-between items-end text-sm text-red-600 dark:text-red-400">
+                     <div className="flex flex-col">
+                        <span className="font-medium">Medicare Levy Surcharge</span>
+                        <span className="text-[10px] opacity-70">({getPct(breakdown.mls)}% of taxable)</span>
+                     </div>
+                     <span className="font-medium">-{formatCurrency(breakdown.mls * displayFactor)}</span>
+                   </div>
+                )}
+                {breakdown.hecs > 0 && (
+                   <div className="flex justify-between items-end text-sm text-orange-600 dark:text-orange-400">
+                     <div className="flex flex-col">
+                        <span className="font-medium">HECS Repayment</span>
+                        <span className="text-[10px] opacity-70">({getPct(breakdown.hecs)}% of taxable)</span>
+                     </div>
+                     <span className="font-medium">-{formatCurrency(breakdown.hecs * displayFactor)}</span>
+                   </div>
+                )}
+             </div>
+
+             <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 mt-2">
+                <div className="flex justify-between items-center">
+                   <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Estimated take-home income</span>
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Bank Transfer</span>
+                   </div>
+                   <span className="text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(breakdown.bankTakeHome * displayFactor)}</span>
+                </div>
+                {breakdown.totalPackaging > 0 && (
+                   <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-1.5">
+                         <div className="bg-emerald-100 dark:bg-emerald-900/40 p-1 rounded"><Plus className="w-3 h-3 text-emerald-600 dark:text-emerald-400"/></div>
+                         <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Salary Packaging Benefit</span>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(breakdown.totalPackaging * displayFactor)}</span>
+                   </div>
+                )}
+             </div>
+             
+             <div className="flex justify-between items-end text-xs text-blue-400 dark:text-blue-500/60 pt-2 px-2">
+               <span className="italic">Total Super Contributions (Incl. Sacrifice)</span>
+               <span className="font-semibold">{formatCurrency(breakdown.totalSuper * displayFactor)}</span>
+             </div>
+             
              <div className="border-t-2 border-slate-100 dark:border-slate-800 my-4"></div>
-             <div className="flex justify-between items-end">
-               <div><span className="text-slate-500 dark:text-slate-400 font-bold block">Net Income</span><span className="text-xs text-slate-400 dark:text-slate-500">Cash in Hand</span></div>
-               <span className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(netIncome * displayFactor)}</span>
+             
+             <div className="flex justify-between items-start">
+               <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-sm uppercase tracking-tight">Total Net Position</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight block max-w-[140px]">Bank Pay + Value of Packaged Living Expenses</span>
+               </div>
+               <div className="text-right">
+                  <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(breakdown.netCashPosition * displayFactor)}</span>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Available Cash Flow</p>
+               </div>
              </div>
            </div>
         </div>

@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Activity, Settings, Wallet, CreditCard, Repeat, Home, TrendingUp } from 'lucide-react';
 import { AppState, UserProfile } from './types';
-import { calculateAnnualAmount, calculateTax } from './services/mathService';
+import { calculateAnnualAmount, calculateNetIncomeBreakdown } from './services/mathService';
 
 // Import Defaults from TS constant
 import { INITIAL_DEFAULT_STATE } from './data/defaults';
@@ -52,7 +51,6 @@ const useLocalStorageState = () => {
       const stored = localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Merge with defaults to ensure any new keys in latest version exist
         setState(prev => ({ ...INITIAL_DEFAULT_STATE, ...parsed }));
       } else {
         setState(INITIAL_DEFAULT_STATE);
@@ -85,25 +83,9 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { state, setState, loading, profiles, setProfiles, currentProfileId, setCurrentProfileId, resetData } = useLocalStorageState();
 
-  // Basic Calculations for Passing Down High-Level Data
-  const annualIncomes = state.incomes.map(item => {
-    const gross = calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit);
-    return { ...item, grossAnnual: gross };
-  });
-
-  const totalGrossCash = annualIncomes.reduce((acc, c) => acc + c.grossAnnual, 0);
-  const totalPackaging = annualIncomes.reduce((acc, c) => acc + (c.salaryPackaging || 0), 0);
-  const totalSacrifice = annualIncomes.reduce((acc, c) => acc + (c.salarySacrifice || 0), 0);
-  const totalAdminFees = annualIncomes.reduce((acc, c) => acc + (c.adminFee || 0), 0);
-  const totalDeductions = state.deductions.reduce((acc, c) => acc + c.amount, 0);
-  
-  // Recalculate basic net income for passing to other tabs
-  const taxable = Math.max(0, totalGrossCash - totalPackaging - totalSacrifice - totalAdminFees - totalDeductions);
-  const baseTax = calculateTax(taxable, state.userSettings.isResident, true);
-  const medicare = (state.userSettings.isResident && taxable > 26000) ? taxable * 0.02 : 0;
-  
-  // Net Income subtracts tax, admin and salary sacrifice (super)
-  const netIncomeAnnual = totalGrossCash - baseTax - medicare - totalAdminFees - totalSacrifice; 
+  // Unified calculation for the entire app
+  const breakdown = calculateNetIncomeBreakdown(state);
+  const netIncomeAnnual = breakdown.netCashPosition; // Includes Packaging Value
   const annualExpense = state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
   const surplusAnnual = Math.max(0, netIncomeAnnual - annualExpense);
 
@@ -115,7 +97,6 @@ export default function App() {
     { id: 'networth', label: 'Net Worth', icon: TrendingUp },
   ];
 
-  // Logic: If user switches to Renting mode or loads a Renting profile while on Mortgage tab, redirect.
   useEffect(() => {
      if (activeTab === 'mortgage' && state.userSettings.isRenting) {
         setActiveTab('income');
@@ -169,7 +150,6 @@ export default function App() {
           {activeTab === 'mortgage' && !state.userSettings.isRenting && <MortgageTab state={state} setState={setState} surplusAnnual={surplusAnnual} />}
           {activeTab === 'networth' && <NetWorthTab state={state} setState={setState} surplusAnnual={surplusAnnual} />}
           
-          {/* Redirect if Renting but on Mortgage Tab */}
           {activeTab === 'mortgage' && state.userSettings.isRenting && (
              <div className="absolute inset-0 bg-white dark:bg-slate-950 z-50 flex items-center justify-center">
                 <div className="text-center">
