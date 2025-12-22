@@ -1,11 +1,17 @@
 
 export type FrequencyUnit = 'week' | 'fortnight' | 'month' | 'quarter' | 'year';
 export type TaxTreatment = 'tft' | 'no-tft' | 'abn';
-export type IncomeType = 'salary' | 'abn' | 'other';
+export type IncomeType = 'salary' | 'abn' | 'investment' | 'other' | 'tax-free';
 
 export interface UserProfile {
   id: string;
   name: string;
+  age?: number;
+  sex?: string;
+  occupation?: string;
+  status?: string; // Citizenship or Visa status
+  dependents?: number;
+  hasSpouse?: boolean;
 }
 
 export interface IncomeStream {
@@ -16,8 +22,8 @@ export interface IncomeStream {
   freqValue: number;
   freqUnit: FrequencyUnit;
   taxTreatment: TaxTreatment;
-  salaryPackaging: number; // Existing: Pre-tax deduction used for expenses (included in net cash conceptually)
-  salarySacrifice: number; // New: Pre-tax deduction into Super (excluded from net cash)
+  salaryPackaging: number;
+  salarySacrifice: number;
   adminFee: number;
   superRate: number; 
   paygOverride: number | null;
@@ -41,6 +47,13 @@ export interface AssetItem {
   growthRate: number;
 }
 
+export interface LiabilityItem {
+  id: string;
+  name: string;
+  balance: number;
+  category: 'Personal' | 'Business' | 'Investment';
+}
+
 export interface AccountBucket {
   id: string;
   name: string;
@@ -54,7 +67,7 @@ export interface AppState {
     hasPrivateHealth: boolean;
     hasHecsDebt: boolean;
     isRenting: boolean;
-    darkMode: boolean; // New
+    darkMode: boolean;
   };
   incomes: IncomeStream[];
   deductions: {
@@ -65,12 +78,13 @@ export interface AppState {
   }[];
   expenses: ExpenseItem[];
   expenseCategories: string[];
-  // New: Cash Flow Account Mapping
   accounts: AccountBucket[];
-  categoryMap: Record<string, string>; // Maps Category Name -> Account ID
+  categoryMap: Record<string, string>;
   
   assets: AssetItem[];
   assetCategories: string[];
+  liabilities: LiabilityItem[];
+
   mortgageParams: {
     principal: number;
     offsetBalance: number;
@@ -83,5 +97,10 @@ export interface AppState {
     useBudgetRepayment: boolean;
     useSurplus: boolean;
   };
+
+  // FIRE Logic
+  fireMode: 'simple' | 'rigorous';
+  retirementBaseCost: number | null; // Annual
+  swr: number; // e.g. 4
   fireTargetOverride: number | null;
 }

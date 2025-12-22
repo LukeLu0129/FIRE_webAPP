@@ -25,7 +25,6 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
   const breakdown = calculateNetIncomeBreakdown(state);
   const displayFactor = 1 / FREQ_MULTIPLIERS[viewPeriod];
 
-  // Percentage calculations helper
   const getPct = (val: number) => breakdown.taxableIncome > 0 ? ((val / breakdown.taxableIncome) * 100).toFixed(1) : '0.0';
 
   return (
@@ -47,18 +46,29 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                     <div className="flex flex-col sm:flex-row gap-2">
                        <input value={inc.name} onChange={e => {
                          const newIncs = [...state.incomes]; newIncs[idx].name = e.target.value; setState({...state, incomes: newIncs});
-                       }} className="w-full sm:flex-1 font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 focus:border-blue-300 outline-none text-sm py-1" placeholder="Income Name" />
+                       }} className="w-full sm:flex-1 font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 focus:border-blue-300 outline-none text-sm py-1 ml-2" placeholder="Income Name" />
                        
                        <select value={inc.type} onChange={e => {
                          const newIncs = [...state.incomes]; 
-                         newIncs[idx].type = e.target.value as IncomeType;
-                         if(e.target.value === 'abn') { newIncs[idx].taxTreatment = 'abn'; newIncs[idx].superRate = 0; }
-                         if(e.target.value === 'salary') { newIncs[idx].superRate = 11.5; }
+                         const nextType = e.target.value as IncomeType;
+                         newIncs[idx].type = nextType;
+                         if(nextType === 'abn') { 
+                            newIncs[idx].taxTreatment = 'abn'; 
+                            newIncs[idx].superRate = 0; 
+                         } else if(nextType === 'salary') { 
+                            newIncs[idx].superRate = 11.5; 
+                            newIncs[idx].taxTreatment = 'no-tft';
+                         } else {
+                            newIncs[idx].superRate = 0;
+                            newIncs[idx].taxTreatment = 'no-tft';
+                         }
                          setState({...state, incomes: newIncs});
                        }} className="w-full sm:w-auto text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-2 py-1">
                           <option value="salary">Salary (PAYG)</option>
                           <option value="abn">ABN (Contractor)</option>
-                          <option value="other">Other (Invest)</option>
+                          <option value="investment">Investment Income</option>
+                          <option value="tax-free">Tax-Free Income</option>
+                          <option value="other">Other Income</option>
                        </select>
                     </div>
 
@@ -90,7 +100,7 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                     
                     <div className="flex flex-wrap gap-2 text-xs items-center pt-1 justify-between">
                         <div className="flex gap-2 items-center">
-                            {inc.type !== 'other' && (
+                            {(inc.type === 'salary' || inc.type === 'abn') && (
                               <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-700 px-2 py-1 rounded border border-slate-200 dark:border-slate-600">
                                 <span className="text-slate-500 dark:text-slate-300">Super</span>
                                 <input type="number" value={inc.superRate} onChange={e => {
@@ -100,7 +110,7 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                               </div>
                             )}
                             
-                            {inc.type !== 'abn' && inc.type !== 'other' && (
+                            {inc.type !== 'abn' && inc.type !== 'tax-free' && (
                                <button onClick={() => {
                                  if (state.incomes[idx].taxTreatment !== 'tft') {
                                     const tftExclusive = state.incomes.map((item, i) => ({ ...item, taxTreatment: i === idx ? 'tft' : (item.taxTreatment === 'tft' ? 'no-tft' : item.taxTreatment) as TaxTreatment }));
@@ -223,13 +233,19 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
 
            <div className="space-y-4 flex-1">
              <div className="flex justify-between items-end">
-               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Gross Cash Income</span>
+               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Gross Cash Income</span>
                <span className="text-lg font-semibold dark:text-white">{formatCurrency(breakdown.totalGrossCash * displayFactor)}</span>
              </div>
              
              <div className="space-y-2">
-                {(breakdown.totalPackaging > 0 || breakdown.totalSacrifice > 0 || breakdown.totalAdminFees > 0) && (
+                {(breakdown.totalPackaging > 0 || breakdown.totalSacrifice > 0 || breakdown.totalAdminFees > 0 || breakdown.taxFreeIncome > 0) && (
                    <div className="space-y-1">
+                      {breakdown.taxFreeIncome > 0 && (
+                         <div className="flex justify-between items-end text-xs text-blue-400 italic">
+                           <span>- Tax-Free Income</span>
+                           <span>-{formatCurrency(breakdown.taxFreeIncome * displayFactor)}</span>
+                         </div>
+                      )}
                       {breakdown.totalPackaging > 0 && (
                          <div className="flex justify-between items-end text-xs text-slate-400 italic">
                            <span>- Salary Packaging (Pre-tax)</span>
@@ -298,10 +314,19 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                 <div className="flex justify-between items-center">
                    <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Estimated take-home income</span>
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Bank Transfer</span>
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Net Salary</span>
                    </div>
-                   <span className="text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(breakdown.bankTakeHome * displayFactor)}</span>
+                   <span className="text-lg font-bold text-slate-800 dark:text-white">{formatCurrency(breakdown.netSalary * displayFactor)}</span>
                 </div>
+                {breakdown.taxFreeIncome > 0 && (
+                   <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-1.5">
+                         <div className="bg-blue-100 dark:bg-blue-900/40 p-1 rounded"><DollarSign className="w-3 h-3 text-blue-600 dark:text-blue-400"/></div>
+                         <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Tax-Free Income</span>
+                      </div>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{formatCurrency(breakdown.taxFreeIncome * displayFactor)}</span>
+                   </div>
+                )}
                 {breakdown.totalPackaging > 0 && (
                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                       <div className="flex items-center gap-1.5">
@@ -322,8 +347,8 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
              
              <div className="flex justify-between items-start">
                <div>
-                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-sm uppercase tracking-tight">Total Net Position</span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight block max-w-[140px]">Bank Pay + Value of Packaged Living Expenses</span>
+                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-sm uppercase tracking-tight">Total Net Income</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight block max-w-[140px]">Net Salary + Tax Free + Value of Packaged Living Expenses</span>
                </div>
                <div className="text-right">
                   <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(breakdown.netCashPosition * displayFactor)}</span>

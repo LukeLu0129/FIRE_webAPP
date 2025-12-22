@@ -2,19 +2,12 @@
 import { FREQ_MULTIPLIERS } from '../constants';
 import { AppState } from '../types';
 
-/**
- * Unifies any amount to a "per week" base.
- */
 export const toWeekly = (amount: number, freqVal: number, freqUnit: string): number => {
   const annual = (amount * (FREQ_MULTIPLIERS[freqUnit] || 1)) / freqVal;
   return annual / 52;
 };
 
-/**
- * Converts a weekly amount to a target display period.
- */
 export const fromWeekly = (weeklyAmount: number, targetUnit: string): number => {
-  // We calculate the annual first, then divide by the target multiplier
   const annual = weeklyAmount * 52;
   return annual / (FREQ_MULTIPLIERS[targetUnit] || 1);
 };
@@ -40,35 +33,48 @@ export const calculateTax = (income: number, resident: boolean, hasTFT: boolean)
   return income * 0.30;
 };
 
-/**
- * Calculates a comprehensive breakdown of annual net income (cash position).
- * Normalizes all inputs to weekly first.
- */
 export const calculateNetIncomeBreakdown = (state: AppState) => {
   const annualIncomes = state.incomes.map(item => {
     const weeklyGross = toWeekly(item.amount, item.freqValue, item.freqUnit);
     const grossAnnual = weeklyGross * 52;
-    const sacrificeAnnual = item.salarySacrifice || 0;
+    
+    const packagingAnnual = toWeekly(item.salaryPackaging || 0, item.freqValue, item.freqUnit) * 52;
+    const sacrificeAnnual = toWeekly(item.salarySacrifice || 0, item.freqValue, item.freqUnit) * 52;
+    const adminFeeAnnual = toWeekly(item.adminFee || 0, item.freqValue, item.freqUnit) * 52;
+    
     const superAmtAnnual = (grossAnnual * (item.superRate / 100)) + sacrificeAnnual;
-    return { ...item, grossAnnual, superAnnual: superAmtAnnual };
+    
+    return { 
+      ...item, 
+      grossAnnual, 
+      superAnnual: superAmtAnnual,
+      packagingAnnual,
+      sacrificeAnnual,
+      adminFeeAnnual
+    };
   });
 
-  const totalGrossCashAnnual = annualIncomes.reduce((acc, c) => acc + c.grossAnnual, 0);
-  const totalPackagingAnnual = annualIncomes.reduce((acc, c) => acc + (c.salaryPackaging || 0), 0);
-  const totalSacrificeAnnual = annualIncomes.reduce((acc, c) => acc + (c.salarySacrifice || 0), 0);
-  const totalAdminFeesAnnual = annualIncomes.reduce((acc, c) => acc + (c.adminFee || 0), 0);
+  const taxableGrossAnnual = annualIncomes
+    .filter(i => i.type !== 'tax-free')
+    .reduce((acc, c) => acc + c.grossAnnual, 0);
+    
+  const taxFreeGrossAnnual = annualIncomes
+    .filter(i => i.type === 'tax-free')
+    .reduce((acc, c) => acc + c.grossAnnual, 0);
+
+  const totalPackagingAnnual = annualIncomes.reduce((acc, c) => acc + c.packagingAnnual, 0);
+  const totalSacrificeAnnual = annualIncomes.reduce((acc, c) => acc + c.sacrificeAnnual, 0);
+  const totalAdminFeesAnnual = annualIncomes.reduce((acc, c) => acc + c.adminFeeAnnual, 0);
   
   const totalDeductionsAnnual = state.deductions.reduce((acc, c) => acc + c.amount, 0);
   const totalSuperAnnual = annualIncomes.reduce((acc, c) => acc + c.superAnnual, 0);
 
-  // Taxable Income is Gross minus pre-tax deductions
-  const taxableIncome = Math.max(0, totalGrossCashAnnual - totalPackagingAnnual - totalSacrificeAnnual - totalAdminFeesAnnual - totalDeductionsAnnual);
+  const taxableIncome = Math.max(0, taxableGrossAnnual - totalPackagingAnnual - totalSacrificeAnnual - totalAdminFeesAnnual - totalDeductionsAnnual);
   const baseTax = calculateTax(taxableIncome, state.userSettings.isResident, true);
   
   let medicare = 0;
   if (state.userSettings.isResident && taxableIncome > 26000) medicare = taxableIncome * 0.02;
 
-  // HECS and MLS use "Adjusted Taxable Income" which adds back fringe benefits
   const reportableFringeBenefits = totalPackagingAnnual * 1.8868; 
   const adjTaxableIncome = taxableIncome + reportableFringeBenefits;
 
@@ -90,14 +96,17 @@ export const calculateNetIncomeBreakdown = (state: AppState) => {
 
   const totalTaxBill = baseTax + medicare + mls + hecs;
   
-  // Bank Transfer (Physical Cash) = Gross - Taxes - Admin - Sacrifice - Packaging
-  const bankTakeHomeAnnual = totalGrossCashAnnual - totalTaxBill - totalAdminFeesAnnual - totalSacrificeAnnual - totalPackagingAnnual;
-
-  // Net Cash Position (Total Benefit) = Bank Take Home + Packaging Value
+  // Net Salary is the taxable portion after taxes and deductions
+  const netSalaryAnnual = taxableGrossAnnual - totalTaxBill - totalAdminFeesAnnual - totalSacrificeAnnual - totalPackagingAnnual;
+  
+  // Bank Take Home is the actual cash flow including tax-free income
+  const bankTakeHomeAnnual = netSalaryAnnual + taxFreeGrossAnnual;
+  
+  // Net Cash Position includes the value of packaged expenses
   const netCashPositionAnnual = bankTakeHomeAnnual + totalPackagingAnnual;
 
   return {
-    totalGrossCash: totalGrossCashAnnual,
+    totalGrossCash: taxableGrossAnnual + taxFreeGrossAnnual,
     totalPackaging: totalPackagingAnnual,
     totalSacrifice: totalSacrificeAnnual,
     totalAdminFees: totalAdminFeesAnnual,
@@ -106,6 +115,8 @@ export const calculateNetIncomeBreakdown = (state: AppState) => {
     medicare,
     mls,
     hecs,
+    netSalary: netSalaryAnnual,
+    taxFreeIncome: taxFreeGrossAnnual,
     bankTakeHome: bankTakeHomeAnnual,
     netCashPosition: netCashPositionAnnual,
     totalSuper: totalSuperAnnual,
@@ -122,8 +133,22 @@ export const calculatePMT = (rate: number, nper: number, pv: number) => {
 export const generateMortgageSimulation = (state: AppState) => {
   const { principal, offsetBalance, interestRate, loanTermYears, userRepayment, repaymentFreq, propertyValue, growthRate } = state.mortgageParams;
   
+  // Australian Standard: Monthly repayment is the base calculation
+  // Per user request, the principal used for minimum calculation now considers the offset/redraw balance
+  const effectivePrincipalForMin = Math.max(0, principal - offsetBalance);
+  const monthlyMin = calculatePMT(interestRate / 100 / 12, loanTermYears * 12, effectivePrincipalForMin);
+  
+  // Minimum required payment for the selected frequency
+  let minRepayment: number;
+  if (repaymentFreq === 'week') {
+    minRepayment = monthlyMin / 4;
+  } else if (repaymentFreq === 'fortnight') {
+    minRepayment = monthlyMin / 2;
+  } else {
+    minRepayment = monthlyMin;
+  }
+
   const nPerYear = repaymentFreq === 'week' ? 52 : repaymentFreq === 'fortnight' ? 26 : 12;
-  const minRepayment = calculatePMT(interestRate / 100 / nPerYear, loanTermYears * nPerYear, principal);
 
   let actualRepayment = userRepayment;
   if (actualRepayment === null) {
@@ -137,7 +162,6 @@ export const generateMortgageSimulation = (state: AppState) => {
   let balStandard = principal;
   let balActual = principal;
   let propVal = propertyValue;
-  
   const freqToMonthly = nPerYear / 12;
   const monthlyRepayActual = actualRepayment * freqToMonthly;
   const monthlyRepayMin = minRepayment * freqToMonthly;
@@ -153,22 +177,23 @@ export const generateMortgageSimulation = (state: AppState) => {
            redraw: Math.max(0, Math.round(balStandard - balActual))
         });
      }
-     
      const monthlyRate = interestRate / 100 / 12;
      
+     // The "Standard" trajectory: Interest is charged on the FULL original principal (net offset at start)
+     // and repayments are based on that net principal.
      if (balStandard > 0) {
-        const intStd = balStandard * monthlyRate; 
+        // Standard projection assumes the offset is treated as part of the initial reduction
+        const intStd = Math.max(0, balStandard - offsetBalance) * monthlyRate; 
         balStandard = balStandard + intStd - monthlyRepayMin;
         if (balStandard < 0) balStandard = 0;
      }
-
+     
      if (balActual > 0) {
         const effectivePrincipal = Math.max(0, balActual - offsetBalance);
         const intAct = effectivePrincipal * monthlyRate;
         balActual = balActual + intAct - monthlyRepayActual;
         if (balActual < 0) balActual = 0;
      }
-
      propVal = propVal * Math.pow(1 + (growthRate / 100), 1/12);
   }
 
@@ -182,70 +207,84 @@ export const generateMortgageSimulation = (state: AppState) => {
 };
 
 export const generateNetWorthSimulation = (state: AppState, surplusAnnual: number) => {
-    const totalAnnualExpense = state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
-    const defaultFireTarget = totalAnnualExpense * 25;
-    const fireTarget = state.fireTargetOverride !== null ? state.fireTargetOverride : defaultFireTarget;
+    const swrFactor = 100 / (state.swr || 4);
+    const engineTarget = (state.retirementBaseCost || 0) * swrFactor;
+    const totalLiabilitiesBalance = state.liabilities.reduce((acc, l) => acc + l.balance, 0);
 
     const data = [];
     let mortgage = state.userSettings.isRenting ? 0 : state.mortgageParams.principal;
     let offset = state.userSettings.isRenting ? 0 : state.mortgageParams.offsetBalance;
     let propVal = state.userSettings.isRenting ? 0 : state.mortgageParams.propertyValue;
-    
     let simulatedAssets = state.assets.map(a => ({ ...a }));
     
+    // Use the simulation's own standard for repayments
+    const { actualRepayment } = generateMortgageSimulation(state);
     const nPerYear = state.mortgageParams.repaymentFreq === 'week' ? 52 : state.mortgageParams.repaymentFreq === 'fortnight' ? 26 : 12;
-    const minRepaymentAnnual = calculatePMT(state.mortgageParams.interestRate / 100 / nPerYear, state.mortgageParams.loanTermYears * nPerYear, state.mortgageParams.principal) * nPerYear;
     
-    const budgetRepaymentAnnual = state.expenses.filter(e => e.isMortgageLink).reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
+    let initialAnnualRepayment = actualRepayment * nPerYear;
     
-    let actualAnnualRepayment = minRepaymentAnnual;
-    if (state.mortgageParams.useBudgetRepayment) actualAnnualRepayment = budgetRepaymentAnnual;
-    if (state.mortgageParams.userRepayment !== null) actualAnnualRepayment = state.mortgageParams.userRepayment * nPerYear;
-    if (actualAnnualRepayment < minRepaymentAnnual) actualAnnualRepayment = minRepaymentAnnual;
-
-    const annualExpenseExclMortgage = state.expenses.filter(e => !e.isMortgageLink).reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
-
-    let realSurplus = surplusAnnual;
-    if (!state.userSettings.isRenting) {
-       const totalBudgetedExpenses = state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
-       const totalNetIncome = surplusAnnual + totalBudgetedExpenses;
-       realSurplus = Math.max(0, totalNetIncome - annualExpenseExclMortgage - actualAnnualRepayment);
-    }
-
-    const initialInterest = mortgage * (state.mortgageParams.interestRate / 100);
-    const initialPrincipalPaid = Math.max(0, actualAnnualRepayment - initialInterest);
-    const initialWealthVelocity = realSurplus + (state.userSettings.isRenting ? 0 : initialPrincipalPaid);
-
     const monthlyRate = state.mortgageParams.interestRate / 100 / 12;
-    const monthlyPayment = actualAnnualRepayment / 12;
 
     for (let year = 0; year <= 30; year++) {
-      const totalAssets = simulatedAssets.reduce((sum, a) => sum + a.value, 0);
+      const totalAssetsValue = simulatedAssets.reduce((sum, a) => sum + a.value, 0);
+      const investableNW = totalAssetsValue; 
+      
+      let currentYearTarget = 0;
+      if (state.fireTargetOverride !== null) {
+          currentYearTarget = state.fireTargetOverride;
+      } else if (state.fireMode === 'rigorous') {
+          // In Rigorous mode, the target includes the "bridge" debts that are not subtracted from NW (like Mortgage)
+          // Since totalLiabilitiesBalance is subtracted from NW, it shouldn't be in the target.
+          currentYearTarget = engineTarget + mortgage;
+      } else {
+          const totalAnnualExpense = state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
+          currentYearTarget = totalAnnualExpense * swrFactor;
+      }
+
+      // Per user request: DO NOT factor in PPOR or Mortgage in Net Worth calculation
+      // Simple = Investable Assets only
+      // Rigorous = Investable Assets - Non-mortgage Liabilities
+      const nwBasis = state.fireMode === 'simple' 
+        ? totalAssetsValue
+        : totalAssetsValue - totalLiabilitiesBalance;
+
       data.push({
         year,
-        netWorth: Math.round((propVal + totalAssets) - mortgage),
-        debt: Math.round(mortgage),
-        fireTarget: Math.round(fireTarget),
-        velocity: initialWealthVelocity 
+        netWorth: Math.round(nwBasis),
+        investableNW: Math.round(investableNW),
+        fireTarget: Math.round(currentYearTarget)
       });
 
       for(let m=0; m<12; m++) {
-        if (!state.userSettings.isRenting) {
-           propVal = propVal * Math.pow(1 + (state.mortgageParams.growthRate / 100), 1/12);
-           if(mortgage > 0) {
-             const effectivePrincipal = Math.max(0, mortgage - offset);
-             const interest = effectivePrincipal * monthlyRate;
-             mortgage = mortgage + interest - monthlyPayment;
-             if(mortgage < 0) mortgage = 0;
-           }
+        if (!state.userSettings.isRenting && mortgage > 0) {
+           const effectivePrincipal = Math.max(0, mortgage - offset);
+           const interest = effectivePrincipal * monthlyRate;
+           const monthlyRepayment = initialAnnualRepayment / 12;
+           mortgage = mortgage + interest - monthlyRepayment;
+           if(mortgage < 0) mortgage = 0;
         }
+        
+        simulatedAssets = simulatedAssets.map(a => ({ 
+          ...a, 
+          value: a.value * Math.pow(1 + a.growthRate/100, 1/12) 
+        }));
+        
+        let monthlyInjection = surplusAnnual / 12;
+        if (!state.userSettings.isRenting && mortgage <= 0) {
+            monthlyInjection += initialAnnualRepayment / 12;
+        }
+        if (simulatedAssets.length > 0) simulatedAssets[0].value += monthlyInjection;
       }
-
-      simulatedAssets = simulatedAssets.map(a => ({ ...a, value: a.value * (1 + a.growthRate/100) }));
-      let injection = realSurplus;
-      if (!state.userSettings.isRenting && mortgage <= 0) injection += actualAnnualRepayment; 
-      if (simulatedAssets.length > 0) simulatedAssets[0].value += injection;
+      
+      propVal = propVal * (1 + (state.mortgageParams.growthRate / 100));
     }
 
-    return { data, fireTarget, velocity: initialWealthVelocity };
+    const todayTarget = state.fireMode === 'rigorous' 
+        ? engineTarget + (state.userSettings.isRenting ? 0 : state.mortgageParams.principal)
+        : state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0) * swrFactor;
+
+    // Velocity tracks growth of the Net Worth basis (Investable Surplus)
+    const initialWealthVelocity = surplusAnnual;
+
+    return { data, fireTarget: todayTarget, velocity: initialWealthVelocity };
 };

@@ -21,12 +21,12 @@ export const MortgageTab: React.FC<Props> = ({ state, setState, surplusAnnual })
   const { data: simData, minRepayment, actualRepayment, payoffActual, payoffStandard } = generateMortgageSimulation(state);
   
   const nPerYear = repaymentFreq === 'week' ? 52 : repaymentFreq === 'fortnight' ? 26 : 12;
-
-  // Calculate Max Capacity (Surplus + current budget allocation)
+  
+  // Calculate linked repayment for reset functionality
   const budgetRepaymentAnnual = state.expenses
     .filter(e => e.isMortgageLink)
     .reduce((acc, item) => acc + ((item.amount * FREQ_MULTIPLIERS[item.freqUnit]) / item.freqValue), 0);
-
+  
   const budgetRepayment = budgetRepaymentAnnual / nPerYear;
   const maxCapacity = (surplusAnnual + budgetRepaymentAnnual) / nPerYear;
 
@@ -111,7 +111,7 @@ export const MortgageTab: React.FC<Props> = ({ state, setState, surplusAnnual })
                   </select>
                </div>
                
-               <div className="mb-4">
+               <div className="mb-4 relative">
                   <p className="text-2xl font-bold text-slate-700 dark:text-slate-100">{formatCurrency(actualRepayment)}</p>
                   <p className="text-xs text-slate-400 mt-1">
                      Minimum: {formatCurrency(minRepayment)}

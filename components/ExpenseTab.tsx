@@ -14,7 +14,7 @@ interface Props {
 }
 
 export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }) => {
-  const [displayPeriod, setDisplayPeriod] = useState<FrequencyUnit>('month');
+  const [displayPeriod, setDisplayPeriod] = useState<FrequencyUnit>('year');
   
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,6 +26,9 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
   const getAnnualCost = (item: any) => (item.amount * FREQ_MULTIPLIERS[item.freqUnit]) / item.freqValue;
   const totalExpenseAnnual = state.expenses.reduce((acc, item) => acc + getAnnualCost(item), 0);
   const surplusAnnual = netIncomeAnnual - totalExpenseAnnual;
+
+  const expensePercent = netIncomeAnnual > 0 ? (totalExpenseAnnual / netIncomeAnnual) * 100 : 0;
+  const surplusPercent = netIncomeAnnual > 0 ? (surplusAnnual / netIncomeAnnual) * 100 : 0;
 
   const getDisplayedCost = (annualCost: number) => annualCost / FREQ_MULTIPLIERS[displayPeriod];
   const displayedSurplus = getDisplayedCost(surplusAnnual);
@@ -282,11 +285,17 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
             })}
          </div>
          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-4">
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded">
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded relative">
+               <div className="absolute top-2 right-2 bg-red-100 dark:bg-red-800/40 text-red-600 dark:text-red-300 text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  {expensePercent.toFixed(1)}% of Net
+               </div>
                <p className="text-xs text-red-600 dark:text-red-400 uppercase font-bold">Total Expenses ({FREQ_LABELS[displayPeriod]})</p>
                <p className="text-xl font-bold text-red-800 dark:text-red-200">{formatCurrency(getDisplayedCost(totalExpenseAnnual))}</p>
             </div>
-            <div className={`p-3 rounded ${surplusAnnual > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-orange-50 dark:bg-orange-900/20'}`}>
+            <div className={`p-3 rounded relative ${surplusAnnual > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-orange-50 dark:bg-orange-900/20'}`}>
+               <div className={`absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded font-bold ${surplusAnnual > 0 ? 'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-600 dark:text-emerald-300' : 'bg-orange-100 dark:bg-orange-800/40 text-orange-600 dark:text-orange-300'}`}>
+                  {surplusPercent.toFixed(1)}% of Net
+               </div>
                <p className={`text-xs uppercase font-bold ${surplusAnnual > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>Surplus ({FREQ_LABELS[displayPeriod]})</p>
                <p className={`text-xl font-bold ${surplusAnnual > 0 ? 'text-emerald-800 dark:text-emerald-200' : 'text-orange-800 dark:text-orange-200'}`}>{formatCurrency(displayedSurplus)}</p>
             </div>

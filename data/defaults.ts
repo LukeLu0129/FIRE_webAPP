@@ -6,7 +6,7 @@ export const INITIAL_DEFAULT_STATE: AppState = {
     "name": "",
     "isResident": true,
     "hasPrivateHealth": true,
-    "hasHecsDebt": true,
+    "hasHecsDebt": false,
     "isRenting": false,
     "darkMode": false
   },
@@ -15,23 +15,23 @@ export const INITIAL_DEFAULT_STATE: AppState = {
       "id": "1",
       "name": "Corporate Salary",
       "type": "salary",
-      "amount": 100000,
+      "amount": 2580.04,
       "freqValue": 1,
-      "freqUnit": "year",
+      "freqUnit": "fortnight",
       "taxTreatment": "tft",
-      "salaryPackaging": 0,
+      "salaryPackaging": 485.84,
       "salarySacrifice": 0,
-      "adminFee": 0,
+      "adminFee": 8.13,
       "superRate": 11.5,
       "paygOverride": null
     },
     {
       "id": "2",
       "name": "Side Hustle",
-      "type": "abn",
-      "amount": 500,
+      "type": "tax-free",
+      "amount": 800,
       "freqValue": 1,
-      "freqUnit": "month",
+      "freqUnit": "week",
       "taxTreatment": "abn",
       "salaryPackaging": 0,
       "salarySacrifice": 0,
@@ -43,150 +43,300 @@ export const INITIAL_DEFAULT_STATE: AppState = {
   "deductions": [],
   "expenses": [
     {
-      "id": "1",
-      "name": "Mortgage / Rent",
-      "amount": 3000,
+      "id": "e1",
+      "name": "Mortgage",
+      "amount": 1200.00,
       "freqValue": 1,
-      "freqUnit": "month",
-      "category": "Mortgage/Rent",
+      "freqUnit": "fortnight",
+      "category": "Debt",
       "isMortgageLink": true
     },
     {
-      "id": "2",
-      "name": "Woolies / Coles",
-      "amount": 250,
+      "id": "e2",
+      "name": "Grocery",
+      "amount": 300.00,
       "freqValue": 1,
       "freqUnit": "week",
-      "category": "Food",
+      "category": "Daily",
       "isMortgageLink": false
     },
     {
-      "id": "3",
-      "name": "Melbourne Coffee",
-      "amount": 35,
+      "id": "e3",
+      "name": "Private Health Insurance",
+      "amount": 37.35,
       "freqValue": 1,
-      "freqUnit": "week",
-      "category": "Food",
-      "isMortgageLink": false
-    },
-    {
-      "id": "4",
-      "name": "Myki / Uber",
-      "amount": 60,
-      "freqValue": 1,
-      "freqUnit": "week",
-      "category": "Transport",
-      "isMortgageLink": false
-    },
-    {
-      "id": "5",
-      "name": "Electricity & Gas",
-      "amount": 250,
-      "freqValue": 1,
-      "freqUnit": "month",
-      "category": "Utilities",
-      "isMortgageLink": false
-    },
-    {
-      "id": "6",
-      "name": "NBN Internet",
-      "amount": 89,
-      "freqValue": 1,
-      "freqUnit": "month",
-      "category": "Utilities",
-      "isMortgageLink": false
-    },
-    {
-      "id": "7",
-      "name": "Friday Drinks / Dining",
-      "amount": 200,
-      "freqValue": 1,
-      "freqUnit": "week",
-      "category": "Entertainment",
-      "isMortgageLink": false
-    },
-    {
-      "id": "8",
-      "name": "Gym Membership",
-      "amount": 50,
-      "freqValue": 2,
-      "freqUnit": "week",
+      "freqUnit": "fortnight",
       "category": "Health",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e4",
+      "name": "Electricity bill",
+      "amount": 120.00,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Utility",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e5",
+      "name": "Water bill- fixed",
+      "amount": 175.00,
+      "freqValue": 1,
+      "freqUnit": "quarter",
+      "category": "Utility",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e6",
+      "name": "Water bill",
+      "amount": 115.00,
+      "freqValue": 1,
+      "freqUnit": "quarter",
+      "category": "Utility",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e7",
+      "name": "Gas bill",
+      "amount": 80.70,
+      "freqValue": 2,
+      "freqUnit": "month",
+      "category": "Utility",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e8",
+      "name": "Internet",
+      "amount": 65.00,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Utility",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e9",
+      "name": "Council rate",
+      "amount": 530.00,
+      "freqValue": 1,
+      "freqUnit": "quarter",
+      "category": "Property",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e10",
+      "name": "Body Corp",
+      "amount": 700.00,
+      "freqValue": 1,
+      "freqUnit": "quarter",
+      "category": "Property",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e11",
+      "name": "Car Insurance",
+      "amount": 510.00,
+      "freqValue": 1,
+      "freqUnit": "year",
+      "category": "Vehicle",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e12",
+      "name": "Home content insurance",
+      "amount": 370.00,
+      "freqValue": 1,
+      "freqUnit": "year",
+      "category": "Property",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e13",
+      "name": "Rego",
+      "amount": 235.38,
+      "freqValue": 3,
+      "freqUnit": "month",
+      "category": "Vehicle",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e14",
+      "name": "Commute",
+      "amount": 60.00,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Commute",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e15",
+      "name": "Logbook Service",
+      "amount": 350.00,
+      "freqValue": 1,
+      "freqUnit": "year",
+      "category": "Vehicle",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e16",
+      "name": "Soundcloud",
+      "amount": 6.99,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Membership",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e17",
+      "name": "Apple music",
+      "amount": 6.99,
+      "freqValue": 1,
+      "freqUnit": "month",
+      "category": "Membership",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e18",
+      "name": "Travel fund",
+      "amount": 2500.00,
+      "freqValue": 1,
+      "freqUnit": "year",
+      "category": "Travel",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e19",
+      "name": "Driver license",
+      "amount": 85.96,
+      "freqValue": 3,
+      "freqUnit": "year",
+      "category": "Vehicle",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e20",
+      "name": "Fuel",
+      "amount": 0,
+      "freqValue": 1,
+      "freqUnit": "fortnight",
+      "category": "Vehicle",
+      "isMortgageLink": false
+    },
+    {
+      "id": "e21",
+      "name": "Buffer",
+      "amount": 50.00,
+      "freqValue": 1,
+      "freqUnit": "week",
+      "category": "Savings",
       "isMortgageLink": false
     }
   ],
   "expenseCategories": [
-    "Mortgage/Rent",
-    "Food",
-    "Transport",
-    "Utilities",
-    "Insurance",
     "Health",
-    "Entertainment",
+    "Vehicle",
+    "Travel",
+    "Commute",
     "Debt",
+    "Membership",
+    "Utility",
+    "Property",
+    "Daily",
     "Savings",
     "Other"
   ],
   "accounts": [
-    { "id": "1", "name": "Daily Spend", "color": "#3b82f6" },
-    { "id": "2", "name": "Bills & Rent", "color": "#f59e0b" },
-    { "id": "3", "name": "Mojo / Savings", "color": "#10b981" },
-    { "id": "4", "name": "Splurge", "color": "#ec4899" }
+    { "id": "1", "name": "BOQ saving", "color": "#ec4899" },
+    { "id": "2", "name": "HSBC cash", "color": "#a855f7" },
+    { "id": "3", "name": "UP Bank", "color": "#f59e0b" }
   ],
   "categoryMap": {
-    "Mortgage/Rent": "2",
-    "Food": "1",
-    "Transport": "1",
-    "Utilities": "2",
-    "Insurance": "2",
-    "Health": "1",
-    "Entertainment": "4",
-    "Debt": "2",
+    "Health": "3",
+    "Vehicle": "3",
+    "Travel": "3",
+    "Commute": "1",
+    "Debt": "3",
+    "Membership": "3",
+    "Utility": "3",
+    "Property": "3",
+    "Daily": "2",
     "Savings": "3",
-    "Other": "1"
+    "Other": "2"
   },
   "assets": [
     {
-      "id": "1",
-      "name": "Vanguard ETF (VGS)",
-      "value": 65000,
+      "id": "a1",
+      "name": "A200",
+      "value": 7218,
       "category": "Shares",
-      "growthRate": 8.0
+      "growthRate": 13.14
     },
     {
-      "id": "2",
-      "name": "HISA (Savings)",
-      "value": 25000,
+      "id": "a2",
+      "name": "DHHF",
+      "value": 8734,
+      "category": "Shares",
+      "growthRate": 12.07
+    },
+    {
+      "id": "a3",
+      "name": "NDQ",
+      "value": 15152,
+      "category": "Shares",
+      "growthRate": 21.92
+    },
+    {
+      "id": "a4",
+      "name": "VDHG",
+      "value": 8833,
+      "category": "Shares",
+      "growthRate": 11.22
+    },
+    {
+      "id": "a5",
+      "name": "Emergency Fund",
+      "value": 11724,
       "category": "Cash",
-      "growthRate": 4.75
+      "growthRate": 1.25
     },
     {
-      "id": "3",
-      "name": "Superannuation",
-      "value": 120000,
-      "category": "Other",
-      "growthRate": 7.5
+      "id": "a6",
+      "name": "Bank saving",
+      "value": 5731,
+      "category": "Cash",
+      "growthRate": 4
     }
   ],
   "assetCategories": [
-    "Shares",
     "Cash",
+    "Shares",
+    "Super",
     "Crypto",
-    "Property (Inv)",
-    "Collectibles",
-    "Other"
+    "Business Equity",
+    "Property Equity"
+  ],
+  "liabilities": [
+    {
+      "id": "l1",
+      "name": "Car Loan",
+      "balance": 18500,
+      "category": "Personal"
+    }
   ],
   "mortgageParams": {
-    "principal": 480000,
-    "offsetBalance": 80000,
-    "interestRate": 6.00,
+    "principal": 464618.06,
+    "offsetBalance": 104351.02,
+    "interestRate": 5.39,
     "loanTermYears": 30,
     "userRepayment": null,
-    "repaymentFreq": "month",
-    "propertyValue": 650000,
-    "growthRate": 3.5,
+    "repaymentFreq": "fortnight",
+    "propertyValue": 645000,
+    "growthRate": 3.8,
     "useBudgetRepayment": true,
     "useSurplus": false
   },
+  "fireMode": 'rigorous',
+  "retirementBaseCost": 35500,
+  "swr": 4.0,
   "fireTargetOverride": null
 };
