@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Settings, Trash2, X, BookOpen, Moon, Sun, Calculator, RefreshCw, User, Briefcase, Globe, Users, Heart } from 'lucide-react';
+import { Settings, Trash2, X, BookOpen, Moon, Sun, Calculator, RefreshCw, User, Briefcase, Globe, Users, Heart, Info } from 'lucide-react';
 import { UserProfile, AppState } from '../types';
 
 const AdvancedVariablesModal = ({ isOpen, onClose }: any) => {
@@ -12,42 +12,74 @@ const AdvancedVariablesModal = ({ isOpen, onClose }: any) => {
           <h2 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-600" /> Math & Methodologies</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300" /></button>
         </div>
-        <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="p-6 space-y-8 overflow-y-auto custom-scrollbar">
           
+          {/* Taxation Logic */}
           <div className="space-y-4">
-            <h3 className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-2 text-sm uppercase tracking-wider"><Calculator className="w-4 h-4"/> Taxation Logic</h3>
-            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
-               <p><strong>Resident Tax Rates (2024-25):</strong></p>
-               <ul className="list-disc pl-5 space-y-1 text-slate-500 dark:text-slate-400">
-                  <li>$0 – $18,200: <strong>0%</strong></li>
-                  <li>$18,201 – $45,000: <strong>16%</strong></li>
-                  <li>$45,001 – $135,000: <strong>30%</strong></li>
-                  <li>$135,001 – $190,000: <strong>37%</strong></li>
-                  <li>$190,001+: <strong>45%</strong></li>
-               </ul>
-               <p className="mt-2"><strong>Medicare Levy:</strong> Applied at <strong>2%</strong> if taxable income exceeds ~$26,000.</p>
-               <p><strong>Medicare Levy Surcharge (MLS):</strong> Applied if you do not have private health insurance and income exceeds tiers ($97k: 1%, $113k: 1.25%, $151k: 1.5%). Includes Reportable Fringe Benefits in calculation.</p>
-               <p><strong>HECS/HELP Debt:</strong> Repayments calculated on Repayment Income (Taxable Income + Net Rental Loss + Total Net Investment Loss + Reportable Fringe Benefits + Reportable Super Contributions).</p>
+            <h3 className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-2 text-sm uppercase tracking-wider"><Calculator className="w-4 h-4"/> Taxation Framework</h3>
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-3 leading-relaxed">
+               <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 font-mono text-[10px]">
+                  <p className="text-blue-500 dark:text-blue-400 mb-1"># Net Taxable Income</p>
+                  <p className="text-slate-800 dark:text-slate-200 font-bold">I_taxable = Σ(Gross_Taxable) - Σ(Packaging) - Σ(Sacrifice) - Σ(Fees)</p>
+                  
+                  <p className="text-blue-500 dark:text-blue-400 mt-3 mb-1"># Repayment Income (HECS/MLS Basis)</p>
+                  <p className="text-slate-800 dark:text-slate-200 font-bold">I_repay = I_taxable + (Packaging × 1.8868) + Sacrifice</p>
+               </div>
+               
+               <p><strong>Medicare Levy:</strong> Applied as <code>2% × I_taxable</code> (if income > ~$26k).</p>
+               <p><strong>MLS Tiering:</strong> If no Private Health, surcharge is applied to <code>I_taxable</code> based on <code>I_repay</code> thresholds ($97k/1%, $113k/1.25%, $151k/1.5%).</p>
             </div>
           </div>
 
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-4">
+          {/* Mortgage Logic */}
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-6 space-y-4">
              <h3 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-sm uppercase tracking-wider"><Calculator className="w-4 h-4"/> Mortgage Simulation</h3>
-             <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
-                <p><strong>Interest Calculation:</strong> Calculated monthly as <code>(Principal - Offset) * (Rate / 12)</code>.</p>
-                <p><strong>Minimum Repayment:</strong> Uses the standard amortization formula (PMT) based on the remaining term and current balance.</p>
-                <p><strong>Actual Repayment:</strong> Defaults to the minimum required. If you budget more in your Expenses, the surplus is treated as an "Extra Repayment" which reduces the principal directly, shortening the loan term.</p>
+             <div className="text-xs text-slate-600 dark:text-slate-300 space-y-3 leading-relaxed">
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 font-mono text-[10px]">
+                  <p className="text-emerald-600 dark:text-emerald-500 mb-1"># Amortization Formula (Standard PMT)</p>
+                  <p className="text-slate-800 dark:text-slate-200 font-bold">M = P [ r(1+r)^n / ((1+r)^n - 1) ]</p>
+                  <p className="text-slate-400 mt-1 italic">Where r = rate/12, n = months remaining, P = (Principal - Offset)</p>
+
+                  <p className="text-emerald-600 dark:text-emerald-500 mt-3 mb-1"># Periodic Interest Charge</p>
+                  <p className="text-slate-800 dark:text-slate-200 font-bold">Interest = Max(0, Principal - Offset) × (Rate / Freq)</p>
+                </div>
+                <p><strong>Offset Impact:</strong> Interest is calculated daily/monthly on the net balance. Any repayment above the calculated <code>Interest</code> reduces the <code>Principal</code> directly, accelerating the payoff date.</p>
              </div>
           </div>
 
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-4">
-             <h3 className="font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2 text-sm uppercase tracking-wider"><Calculator className="w-4 h-4"/> Net Worth & FIRE</h3>
-             <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
-                <p><strong>Net Worth:</strong> <code>(Property Value + Investment Assets + Cash) - Mortgage Balance</code>.</p>
-                <p><strong>Projection:</strong> Assets grow at your specified Compound Annual Growth Rate (CAGR), applied monthly. Surplus cash flow is assumed to be invested into your first asset bucket.</p>
-                <p><strong>FIRE Target (Financial Independence, Retire Early):</strong> Calculated using the <strong>4% Rule</strong> (or 25x Rule). </p>
-                <p className="bg-slate-100 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 italic">Target = Annual Expenses × 25</p>
-                <p>This assumes you can withdraw 4% of your portfolio annually in retirement without running out of money.</p>
+          {/* Net Worth & FIRE Modes */}
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-6 space-y-4">
+             <h3 className="font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2 text-sm uppercase tracking-wider"><Calculator className="w-4 h-4"/> Net Worth & FIRE Methodologies</h3>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl space-y-2">
+                   <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <h4 className="font-bold text-blue-700 dark:text-blue-300 text-[11px] uppercase">Simple Mode</h4>
+                   </div>
+                   <div className="font-mono text-[9px] text-slate-600 dark:text-slate-400">
+                      <p className="font-bold text-slate-800 dark:text-slate-200">NW = Σ(Investable_Assets)</p>
+                      <p className="mt-2 font-bold text-slate-800 dark:text-slate-200">Target = Total_Expenses × (100 / SWR)</p>
+                   </div>
+                   <p className="text-[10px] text-slate-500 leading-tight">Focuses purely on liquid investments. Ignores debt and assumes your current lifestyle expenses must be 100% replaced by your portfolio.</p>
+                </div>
+
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-xl space-y-2">
+                   <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                      <h4 className="font-bold text-indigo-700 dark:text-indigo-300 text-[11px] uppercase">Rigorous Mode</h4>
+                   </div>
+                   <div className="font-mono text-[9px] text-slate-600 dark:text-slate-400">
+                      <p className="font-bold text-slate-800 dark:text-slate-200">NW = Σ(Assets) - Σ(Non_Mortgage_Debt)</p>
+                      <p className="mt-2 font-bold text-slate-800 dark:text-slate-200">Target = (Core_Cost × 25) + Mortgage + Debts</p>
+                   </div>
+                   <p className="text-[10px] text-slate-500 leading-tight">Accounts for debt repayment. Your target is a "Debt-Free" perpetual engine. Once net assets cross the engine cost + debt payoff, you are FIRE.</p>
+                </div>
+             </div>
+
+             <div className="text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-lg">
+                <p className="flex items-center gap-2 font-bold mb-1"><Info className="w-3 h-3 text-blue-500"/> The PPOR Exclusion</p>
+                <p className="text-[10px]">To ensure mathematical integrity for FIRE, the value of your <strong>Primary Residence (PPOR)</strong> and your <strong>Mortgage</strong> are excluded from the core Net Worth basis. This prevents "paper wealth" (home equity) from creating a false sense of liquid financial independence.</p>
              </div>
           </div>
 
@@ -201,8 +233,8 @@ export const SettingsModal: React.FC<SettingsProps> = ({ isOpen, onClose, profil
             <hr className="border-slate-100 dark:border-slate-800" />
 
             <div className="space-y-2 pb-6">
-                <button onClick={() => setShowAdvanced(true)} className="w-full py-2 border border-slate-300 dark:border-slate-600 rounded text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    View Math & Assumptions
+                <button onClick={() => setShowAdvanced(true)} className="w-full py-2 border border-slate-300 dark:border-slate-600 rounded text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" /> View Math & Assumptions
                 </button>
                 
                 <button 

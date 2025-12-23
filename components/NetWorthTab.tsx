@@ -21,6 +21,7 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
 
   const totalAssets = state.assets.reduce((sum, a) => sum + a.value, 0);
   const totalLiabilitiesBalance = state.liabilities.reduce((acc, l) => acc + l.balance, 0);
+  const totalAnnualExpenses = state.expenses.reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
   
   // Per user request: DO NOT factor in PPOR or Mortgage in Net Worth calculation
   // Simple = Investable Assets only
@@ -44,7 +45,7 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
 
   const syncRetirementCostFromExpenses = () => {
     const nonMortgageAnnual = state.expenses
-      .filter(e => !e.isMortgageLink)
+      .filter(e => !e.isMortgageLink && e.category !== 'Non-deductible debt')
       .reduce((acc, item) => acc + calculateAnnualAmount(item.amount, item.freqValue, item.freqUnit), 0);
     setState(s => ({...s, retirementBaseCost: Math.round(nonMortgageAnnual)}));
   };
@@ -70,7 +71,7 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
               {state.assets.map((item, idx) => (
                 <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700 hover:border-blue-300 transition-colors group/item shadow-sm">
                    <div className="flex flex-col gap-2.5">
-                      {/* ROW 1: Separate row for Asset Name */}
+                      {/* ROW 1: Dedicated row for Asset Name */}
                       <div className="flex items-end justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <label className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 block ml-1">Asset Name</label>
@@ -95,7 +96,7 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
                       {/* ROW 2: Asset Type, Balance, and Growth Rate in the same row */}
                       <div className="flex items-center gap-2">
                         {/* Type */}
-                        <div className="w-30 shrink-0">
+                        <div className="w-20 shrink-0">
                           <label className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 block ml-1">Asset Type</label>
                           <select 
                             className="w-full border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-[9px] bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 font-medium" 
@@ -126,8 +127,8 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
                         </div>
 
                         {/* Growth */}
-                        <div className="w-1/6 shrink-0">
-                          <label className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 block ml-1 ">CAGR</label>
+                        <div className="w-16 shrink-0">
+                          <label className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 block ml-1 text-center">CAGR</label>
                           <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5">
                              <input 
                                type="number" 
@@ -278,12 +279,17 @@ export const NetWorthTab: React.FC<Props> = ({ state, setState, surplusAnnual })
                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">FIRE Target (Today)</h4>
                   <div className="space-y-3">
-                     <div className="flex justify-between items-end">
-                        <span className="text-xs text-slate-500">Perpetual Engine ({100/state.swr}x)</span>
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency((state.retirementBaseCost || 0) * (100/state.swr))}</span>
-                     </div>
-                     {state.fireMode === 'rigorous' && (
+                     {state.fireMode === 'simple' ? (
+                        <div className="flex justify-between items-end">
+                           <span className="text-xs text-slate-500">Expense-Based Target ({100/state.swr}x)</span>
+                           <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency(totalAnnualExpenses * (100/state.swr))}</span>
+                        </div>
+                     ) : (
                         <>
+                           <div className="flex justify-between items-end">
+                              <span className="text-xs text-slate-500">Perpetual Engine ({100/state.swr}x)</span>
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency((state.retirementBaseCost || 0) * (100/state.swr))}</span>
+                           </div>
                            <div className="flex justify-between items-end">
                               <span className="text-xs text-slate-500">Mortgage Bridge</span>
                               <span className="text-sm font-bold text-red-500">{formatCurrency(!state.userSettings.isRenting ? state.mortgageParams.principal : 0)}</span>

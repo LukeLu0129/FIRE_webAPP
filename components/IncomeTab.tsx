@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
-import { DollarSign, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { DollarSign, Plus, Trash2, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { AppState, FrequencyUnit, IncomeType, TaxTreatment } from '../types';
 import { FREQ_LABELS, FREQ_MULTIPLIERS, formatCurrency } from '../constants';
-import { calculateNetIncomeBreakdown } from '../services/mathService';
+import { calculateNetIncomeBreakdown, toWeekly } from '../services/mathService';
 import { NumberInput } from './NumberInput';
 
 interface Props {
@@ -26,6 +26,23 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
   const displayFactor = 1 / FREQ_MULTIPLIERS[viewPeriod];
 
   const getPct = (val: number) => breakdown.taxableIncome > 0 ? ((val / breakdown.taxableIncome) * 100).toFixed(1) : '0.0';
+
+  const taxableIncomeByType = useMemo(() => {
+    const groups: Record<string, number> = {};
+    state.incomes.forEach(inc => {
+      if (inc.type === 'tax-free') return;
+      const weekly = toWeekly(inc.amount, inc.freqValue, inc.freqUnit);
+      groups[inc.type] = (groups[inc.type] || 0) + (weekly * 52);
+    });
+    return groups;
+  }, [state.incomes]);
+
+  const typeLabels: Record<string, string> = {
+    salary: 'Salary (PAYG)',
+    abn: 'ABN (Contract)',
+    investment: 'Investment',
+    other: 'Other'
+  };
 
   return (
     <div className="h-full flex flex-col md:flex-row p-4 md:p-6 gap-6 overflow-y-auto">
@@ -97,6 +114,13 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                           </select>
                        </div>
                     </div>
+
+                    {inc.type === 'investment' && (
+                       <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50/50 dark:bg-blue-900/10 rounded border border-blue-100 dark:border-blue-900/30">
+                          <Info className="w-3 h-3 text-blue-500 shrink-0" />
+                          <p className="text-[9px] text-blue-600 dark:text-blue-400 italic">This income can be positive (profit) or negative (geared loss).</p>
+                       </div>
+                    )}
                     
                     <div className="flex flex-wrap gap-2 text-xs items-center pt-1 justify-between">
                         <div className="flex gap-2 items-center">
@@ -110,7 +134,7 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
                               </div>
                             )}
                             
-                            {inc.type !== 'abn' && inc.type !== 'tax-free' && (
+                            {inc.type === 'salary' && (
                                <button onClick={() => {
                                  if (state.incomes[idx].taxTreatment !== 'tft') {
                                     const tftExclusive = state.incomes.map((item, i) => ({ ...item, taxTreatment: i === idx ? 'tft' : (item.taxTreatment === 'tft' ? 'no-tft' : item.taxTreatment) as TaxTreatment }));
@@ -232,20 +256,24 @@ export const IncomeTab: React.FC<Props> = ({ state, setState }) => {
            </div>
 
            <div className="space-y-4 flex-1">
-             <div className="flex justify-between items-end">
-               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Gross Cash Income</span>
-               <span className="text-lg font-semibold dark:text-white">{formatCurrency(breakdown.totalGrossCash * displayFactor)}</span>
+             <div className="space-y-2">
+               <div className="flex justify-between items-end">
+                 <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Gross Taxable Income</span>
+                 <span className="text-lg font-semibold dark:text-white">{formatCurrency((breakdown.totalGrossCash - breakdown.taxFreeIncome) * displayFactor)}</span>
+               </div>
+               <div className="space-y-1 pl-3 border-l border-slate-200 dark:border-slate-700">
+                  {Object.entries(taxableIncomeByType).map(([type, amount]) => (
+                    <div key={type} className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase">
+                      <span>{typeLabels[type as keyof typeof typeLabels] || type}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{formatCurrency(amount * displayFactor)}</span>
+                    </div>
+                  ))}
+               </div>
              </div>
              
              <div className="space-y-2">
-                {(breakdown.totalPackaging > 0 || breakdown.totalSacrifice > 0 || breakdown.totalAdminFees > 0 || breakdown.taxFreeIncome > 0) && (
+                {(breakdown.totalPackaging > 0 || breakdown.totalSacrifice > 0 || breakdown.totalAdminFees > 0) && (
                    <div className="space-y-1">
-                      {breakdown.taxFreeIncome > 0 && (
-                         <div className="flex justify-between items-end text-xs text-blue-400 italic">
-                           <span>- Tax-Free Income</span>
-                           <span>-{formatCurrency(breakdown.taxFreeIncome * displayFactor)}</span>
-                         </div>
-                      )}
                       {breakdown.totalPackaging > 0 && (
                          <div className="flex justify-between items-end text-xs text-slate-400 italic">
                            <span>- Salary Packaging (Pre-tax)</span>

@@ -37,6 +37,7 @@ export interface ExpenseItem {
   freqUnit: FrequencyUnit;
   category: string;
   isMortgageLink: boolean;
+  payoffYears?: number; // Estimated years for paid-off
 }
 
 export interface AssetItem {

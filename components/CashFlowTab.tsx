@@ -12,12 +12,11 @@ interface Props {
   netIncomeAnnual: number;
 }
 
-// Removed #10b981 (the surplus green) from the start of the list to avoid duplication
 const RAINBOW_PRESETS = [
   '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', 
   '#d946ef', '#ec4899', '#ef4444', '#f97316', 
   '#f59e0b', '#eab308', '#84cc16', '#22c55e', 
-  '#06b6d4', '#10b981' // Moved to end
+  '#06b6d4', '#10b981' 
 ];
 
 const INCOME_GREYS = [
@@ -64,7 +63,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Use unified weekly amounts for all logic
   const weeklyIncomes = useMemo(() => state.incomes.map(item => ({
     ...item,
     weeklyAmount: toWeekly(item.amount, item.freqValue, item.freqUnit)
@@ -72,39 +70,68 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
 
   const totalWeeklyGross = useMemo(() => weeklyIncomes.reduce((acc, i) => acc + i.weeklyAmount, 0) || 1, [weeklyIncomes]);
   
-  const weeklyExpensesByCategory = useMemo(() => {
+  const breakdown = calculateNetIncomeBreakdown(state);
+  const weeklyNetCash = breakdown.netCashPosition / 52;
+
+  // Calculate base expenses from state first
+  const baseExpensesWeekly = useMemo(() => {
     const sums: Record<string, number> = {};
     state.expenses.forEach(exp => {
       sums[exp.category] = (sums[exp.category] || 0) + toWeekly(exp.amount, exp.freqValue, exp.freqUnit);
     });
     return sums;
   }, [state.expenses]);
-  
-  const breakdown = calculateNetIncomeBreakdown(state);
-  const weeklyNetCash = breakdown.netCashPosition / 52;
-  const totalWeeklyExpenses = Object.values(weeklyExpensesByCategory).reduce((a, b) => a + b, 0);
-  const weeklySurplus = Math.max(0, weeklyNetCash - totalWeeklyExpenses);
+
+  const totalBaseExpensesWeekly = useMemo(() => Object.values(baseExpensesWeekly).reduce((a, b) => a + b, 0), [baseExpensesWeekly]);
+  const weeklySurplus = Math.max(0, weeklyNetCash - totalBaseExpensesWeekly);
+
+  // Unified expense map including an automatic 'Surplus' category
+  const weeklyExpensesByCategory = useMemo(() => {
+    const sums = { ...baseExpensesWeekly };
+    if (weeklySurplus > 0) {
+      sums['Surplus'] = weeklySurplus;
+    }
+    return sums;
+  }, [baseExpensesWeekly, weeklySurplus]);
 
   const displayVal = (weekly: number) => fromWeekly(weekly, displayPeriod);
 
-  const unmappedCategories = useMemo(() => {
-    return state.expenseCategories.filter(cat => {
-      const amount = weeklyExpensesByCategory[cat] || 0;
-      return amount > 0 && !state.categoryMap[cat];
-    });
-  }, [state.expenseCategories, weeklyExpensesByCategory, state.categoryMap]);
+  const activeCategories = useMemo(() => {
+    const cats = state.expenseCategories.filter(c => (weeklyExpensesByCategory[c] || 0) > 0);
+    // Explicitly add 'Surplus' to the list of categories that need mapping
+    if (weeklySurplus > 0 && !cats.includes('Surplus')) {
+        cats.push('Surplus');
+    }
+    return cats;
+  }, [state.expenseCategories, weeklyExpensesByCategory, weeklySurplus]);
 
-  const activeCategories = useMemo(() => state.expenseCategories.filter(c => (weeklyExpensesByCategory[c] || 0) > 0), [state.expenseCategories, weeklyExpensesByCategory]);
+  const unmappedCategories = useMemo(() => {
+    return activeCategories.filter(cat => {
+      // If user has a manual mapping, it's not unmapped
+      if (state.categoryMap[cat]) return false;
+      // If it's the automatic 'Surplus' category and a 'Surplus' bucket exists, 
+      // treat it as automatically allocated (not unmapped)
+      if (cat === 'Surplus' && state.accounts.some(acc => acc.name === 'Surplus')) return false;
+      return true;
+    });
+  }, [activeCategories, state.categoryMap, state.accounts]);
 
   const bucketWeeklySums = useMemo(() => {
      const sums: Record<string, number> = {};
      state.accounts.forEach(acc => {
-         const cats = state.expenseCategories.filter(c => state.categoryMap[c] === acc.id);
-         const total = cats.reduce((accVal, cat) => accVal + (weeklyExpensesByCategory[cat] || 0), 0);
+         const total = activeCategories.reduce((accVal: number, cat: string) => {
+             const mappedId = state.categoryMap[cat];
+             let isMappedToThisAcc = mappedId === acc.id;
+             // Automatic allocation logic for Surplus
+             if (!mappedId && cat === 'Surplus' && acc.name === 'Surplus') {
+                 isMappedToThisAcc = true;
+             }
+             return isMappedToThisAcc ? accVal + (weeklyExpensesByCategory[cat] || 0) : accVal;
+         }, 0);
          sums[acc.id] = total;
      });
      return sums;
-  }, [state.accounts, state.categoryMap, weeklyExpensesByCategory]);
+  }, [state.accounts, state.categoryMap, weeklyExpensesByCategory, activeCategories]);
 
   const { chartData, chartOptions, nodeCount } = useMemo(() => {
     const rows: [string, string, number][] = [];
@@ -130,46 +157,38 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
 
     if (weeklyIncomes.length === 0) addNode(poolName, poolColor);
 
-    const bucketWeeklyTotals: Record<string, number> = {};
-    state.accounts.forEach(acc => bucketWeeklyTotals[acc.id] = 0);
-    let unmappedWeeklyTotal = 0;
-
-    activeCategories.forEach(cat => {
-        const val = weeklyExpensesByCategory[cat];
-        const accId = state.categoryMap[cat];
-        if (accId && bucketWeeklyTotals[accId] !== undefined) bucketWeeklyTotals[accId] += val; else unmappedWeeklyTotal += val;
-    });
-
-    if (weeklySurplus > 0) {
-        const surplusMiddle = `Surplus `;
-        const surplusRight = `Surplus (${shortCurrency(displayVal(weeklySurplus))})`;
-        addNode(surplusMiddle, '#10b981');
-        rows.push([poolName, surplusMiddle, displayVal(weeklySurplus)]);
-        addNode(surplusRight, '#10b981');
-        rows.push([surplusMiddle, surplusRight, displayVal(weeklySurplus)]);
-    }
-
     state.accounts.forEach(acc => {
-        if (bucketWeeklyTotals[acc.id] > 0) {
+        const totalInBucket = bucketWeeklySums[acc.id] || 0;
+        if (totalInBucket > 0) {
             addNode(acc.name, acc.color);
-            rows.push([poolName, acc.name, displayVal(bucketWeeklyTotals[acc.id])]);
-            const catsInBucket = activeCategories.filter(c => state.categoryMap[c] === acc.id);
+            rows.push([poolName, acc.name, displayVal(totalInBucket)]);
+            
+            const catsInBucket = activeCategories.filter(c => {
+                const mappedId = state.categoryMap[c];
+                if (mappedId) return mappedId === acc.id;
+                // Default allocation for Surplus category to Surplus bucket
+                if (c === 'Surplus' && acc.name === 'Surplus') return true;
+                return false;
+            });
+
             catsInBucket.sort((a, b) => weeklyExpensesByCategory[b] - weeklyExpensesByCategory[a]);
             catsInBucket.forEach((cat, idx) => {
                 const val = weeklyExpensesByCategory[cat];
                 const catName = `${cat} (${shortCurrency(displayVal(val))})`;
-                addNode(catName, adjustColor(acc.color, 30 + (idx * 15)));
+                // Use Emerald green for surplus node regardless of bucket color
+                const color = cat === 'Surplus' ? '#10b981' : adjustColor(acc.color, 30 + (idx * 15));
+                addNode(catName, color);
                 rows.push([acc.name, catName, displayVal(val)]);
             });
         }
     });
 
-    if (unmappedWeeklyTotal > 0) {
+    const unmappedTotal = unmappedCategories.reduce((acc, cat) => acc + (weeklyExpensesByCategory[cat] || 0), 0);
+    if (unmappedTotal > 0) {
         addNode('Unmapped', '#ef4444');
-        rows.push([poolName, 'Unmapped', displayVal(unmappedWeeklyTotal)]);
-        const catsUnmapped = activeCategories.filter(c => !state.categoryMap[c]);
-        catsUnmapped.sort((a, b) => weeklyExpensesByCategory[b] - weeklyExpensesByCategory[a]);
-        catsUnmapped.forEach((cat, idx) => {
+        rows.push([poolName, 'Unmapped', displayVal(unmappedTotal)]);
+        unmappedCategories.sort((a, b) => weeklyExpensesByCategory[b] - weeklyExpensesByCategory[a]);
+        unmappedCategories.forEach((cat, idx) => {
             const val = weeklyExpensesByCategory[cat];
             const catName = `${cat} (${shortCurrency(displayVal(val))})`;
             addNode(catName, adjustColor('#ef4444', 30 + (idx * 15)));
@@ -190,7 +209,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
         },
         nodeCount: nodeSet.size
     };
-  }, [state, weeklyNetCash, weeklyExpensesByCategory, displayPeriod, weeklySurplus, totalWeeklyGross, weeklyIncomes, activeCategories]);
+  }, [state, weeklyNetCash, weeklyExpensesByCategory, displayPeriod, totalWeeklyGross, weeklyIncomes, activeCategories, bucketWeeklySums, unmappedCategories]);
 
   const addAccount = () => {
     if(!newAccountName) return;
@@ -239,7 +258,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
         if (sourceIndex === targetIndex) return;
         const newAccounts = [...state.accounts];
         const [movedAccount] = newAccounts.splice(sourceIndex, 1);
-        // Correct the insertion index if moving an item from before to after
         const adjustedTarget = targetIndex;
         newAccounts.splice(adjustedTarget, 0, movedAccount);
         setState((s) => ({ ...s, accounts: newAccounts }));
@@ -249,7 +267,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
   return (
     <div className="h-full flex flex-col md:flex-row p-4 md:p-6 gap-6 overflow-y-auto">
       <div className="w-full md:w-1/3 space-y-4 flex-none flex flex-col">
-         {/* Combined Budget Flow & Category Pool Card */}
+         {/* Pool Card */}
          <div 
             onDragOver={handleDragOver} 
             onDrop={(e) => { e.preventDefault(); updateCategoryMap(e.dataTransfer.getData('application/fire-category'), null); }}
@@ -257,7 +275,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
          >
              <h3 className="font-bold text-blue-900 dark:text-blue-100 mb-1 flex items-center gap-2 text-sm"><HelpCircle className="w-4 h-4"/> Budget Flow</h3>
              <p className="text-[11px] text-blue-800 dark:text-blue-200 leading-relaxed mb-4">
-               Drag categories into buckets to map your cash flow. Categories dropped here will return to the pool. Customize bucket colors with the icon.
+               Drag categories into buckets to map your cash flow. Leftover surplus is now an automatic category you can assign to a savings bucket.
              </p>
              
              {unmappedCategories.length > 0 && (
@@ -267,7 +285,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                    </h4>
                    <div className="flex flex-wrap gap-2 min-h-[30px]">
                        {unmappedCategories.map(cat => (
-                           <div key={cat} draggable onDragStart={(e) => handleDragStartCategory(e, cat)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[10px] px-2 py-1 rounded shadow-sm cursor-grab active:cursor-grabbing flex items-center gap-1.5 hover:border-blue-400 transition-all select-none">
+                           <div key={cat} draggable onDragStart={(e) => handleDragStartCategory(e, cat)} className={`border text-[10px] px-2 py-1 rounded shadow-sm cursor-grab active:cursor-grabbing flex items-center gap-1.5 transition-all select-none ${cat === 'Surplus' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:border-blue-400'}`}>
                                <GripVertical className="w-3 h-3 text-slate-300" />
                                <span className="font-medium">{cat}</span>
                                <span className="text-[9px] opacity-60 ml-0.5">{formatCurrency(displayVal(weeklyExpensesByCategory[cat]))}</span>
@@ -280,10 +298,16 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
 
          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-10 pr-1">
             {state.accounts.map((acc, idx) => {
-                const assignedCats = Object.keys(state.categoryMap).filter(k => state.categoryMap[k] === acc.id && (weeklyExpensesByCategory[k] || 0) > 0);
+                const assignedCats = activeCategories.filter(cat => {
+                    const mappedId = state.categoryMap[cat];
+                    if (mappedId) return mappedId === acc.id;
+                    // Auto-mapping for visual display
+                    if (!mappedId && cat === 'Surplus' && acc.name === 'Surplus') return true;
+                    return false;
+                });
+
                 return (
                 <React.Fragment key={acc.id}>
-                    {/* Placeholder Line for reordering */}
                     {isDraggingBucket && dragOverIndex === idx && (
                         <div className="h-1 bg-blue-500 rounded-full mx-2 animate-pulse" />
                     )}
@@ -339,7 +363,7 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                             ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                     {assignedCats.map(cat => (
-                                        <div key={cat} draggable onDragStart={(e) => { e.stopPropagation(); handleDragStartCategory(e, cat); }} className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-slate-700 dark:text-slate-200 shadow-sm cursor-grab active:cursor-grabbing select-none group/tag">
+                                        <div key={cat} draggable onDragStart={(e) => { e.stopPropagation(); handleDragStartCategory(e, cat); }} className={`flex items-center gap-1.5 border rounded px-1.5 py-0.5 text-[10px] shadow-sm cursor-grab active:cursor-grabbing select-none group/tag ${cat === 'Surplus' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}>
                                             <div className="flex flex-col leading-tight">
                                                 <span className="font-medium">{cat}</span>
                                                 <span className="text-[9px] opacity-60">{formatCurrency(displayVal(weeklyExpensesByCategory[cat]))}</span>
@@ -354,7 +378,6 @@ export const CashFlowTab: React.FC<Props> = ({ state, setState, netIncomeAnnual 
                 </React.Fragment>
             )})}
 
-            {/* Final Drop Zone for moving to last position */}
             {isDraggingBucket && (
                 <div 
                     onDragOver={(e) => handleDragOverBucket(e, state.accounts.length)}

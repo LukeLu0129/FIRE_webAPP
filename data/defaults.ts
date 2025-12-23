@@ -48,7 +48,7 @@ export const INITIAL_DEFAULT_STATE: AppState = {
       "amount": 1200.00,
       "freqValue": 1,
       "freqUnit": "fortnight",
-      "category": "Debt",
+      "category": "Residential Property",
       "isMortgageLink": true
     },
     {
@@ -233,6 +233,8 @@ export const INITIAL_DEFAULT_STATE: AppState = {
     }
   ],
   "expenseCategories": [
+    "Residential Property",
+    "Non-deductible debt",
     "Health",
     "Vehicle",
     "Travel",
@@ -248,7 +250,8 @@ export const INITIAL_DEFAULT_STATE: AppState = {
   "accounts": [
     { "id": "1", "name": "BOQ saving", "color": "#ec4899" },
     { "id": "2", "name": "HSBC cash", "color": "#a855f7" },
-    { "id": "3", "name": "UP Bank", "color": "#f59e0b" }
+    { "id": "3", "name": "UP Bank", "color": "#f59e0b" },
+    { "id": "surplus", "name": "Surplus", "color": "#10b981" }
   ],
   "categoryMap": {
     "Health": "3",
@@ -261,7 +264,8 @@ export const INITIAL_DEFAULT_STATE: AppState = {
     "Property": "3",
     "Daily": "2",
     "Savings": "3",
-    "Other": "2"
+    "Other": "2",
+    "Surplus": "surplus"
   },
   "assets": [
     {

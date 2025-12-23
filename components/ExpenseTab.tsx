@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, Trash2, Link as LinkIcon, X, Pencil, RefreshCw } from 'lucide-react';
+import { DollarSign, Trash2, Link as LinkIcon, X, Pencil, RefreshCw, Calculator, Info } from 'lucide-react';
 import { AppState, FrequencyUnit, ExpenseItem } from '../types';
 import { FREQ_LABELS, FREQ_MULTIPLIERS, COLORS, formatCurrency } from '../constants';
 import { NumberInput } from './NumberInput';
@@ -13,15 +13,78 @@ interface Props {
   setActiveTab: (tab: string) => void;
 }
 
+const DebtCalculatorModal = ({ isOpen, onClose, onCalculate, initialRepayment, initialFreq }: any) => {
+  const [balance, setBalance] = useState(0);
+  const [interestRate, setInterestRate] = useState(5.0);
+  const [repayment, setRepayment] = useState(initialRepayment || 0);
+  const [freq, setFreq] = useState<FrequencyUnit>(initialFreq || 'month');
+
+  if (!isOpen) return null;
+
+  const calculate = () => {
+    const rPerPeriod = (interestRate / 100) / FREQ_MULTIPLIERS[freq];
+    const p = repayment;
+    if (p <= balance * rPerPeriod) {
+      alert("Repayment must be greater than interest charge to pay off debt!");
+      return;
+    }
+    // Simulation based calculation for accuracy
+    let currentBalance = balance;
+    let periods = 0;
+    while (currentBalance > 0 && periods < 1200) { // cap at 100 years
+      currentBalance = currentBalance + (currentBalance * rPerPeriod) - p;
+      periods++;
+    }
+    const years = periods / FREQ_MULTIPLIERS[freq];
+    onCalculate(parseFloat(years.toFixed(1)));
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 border border-slate-200 dark:border-slate-800">
+        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calculator className="w-5 h-5 text-blue-500" /> Payoff Calculator</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Remaining Balance</label>
+            <NumberInput value={balance} onValueChange={setBalance} className="w-full border rounded p-2 text-sm bg-slate-50 dark:bg-slate-800" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Interest Rate (%)</label>
+              <input type="number" step="0.1" value={interestRate} onChange={e => setInterestRate(Number(e.target.value))} className="w-full border rounded p-2 text-sm bg-slate-50 dark:bg-slate-800" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Freq</label>
+              <select value={freq} onChange={e => setFreq(e.target.value as FrequencyUnit)} className="w-full border rounded p-2 text-sm bg-slate-50 dark:bg-slate-800">
+                {Object.entries(FREQ_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Repayment Amount</label>
+            <NumberInput value={repayment} onValueChange={setRepayment} className="w-full border rounded p-2 text-sm bg-slate-50 dark:bg-slate-800" />
+          </div>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 py-2 text-sm font-bold text-slate-500 bg-slate-100 rounded hover:bg-slate-200">Cancel</button>
+          <button onClick={calculate} className="flex-1 py-2 text-sm font-bold text-white bg-blue-600 rounded hover:bg-blue-700">Apply</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }) => {
   const [displayPeriod, setDisplayPeriod] = useState<FrequencyUnit>('year');
   
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newExp, setNewExp] = useState({ name: '', amount: 0, freqVal: 1, freqUnit: 'month' as FrequencyUnit, cat: 'Mortgage/Rent', isMortgageLink: false });
+  const [newExp, setNewExp] = useState({ name: '', amount: 0, freqVal: 1, freqUnit: 'month' as FrequencyUnit, cat: 'Residential Property', isMortgageLink: true, payoffYears: 0 as number | undefined });
   
   const [showCatManager, setShowCatManager] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [showDebtCalc, setShowDebtCalc] = useState(false);
 
   const getAnnualCost = (item: any) => (item.amount * FREQ_MULTIPLIERS[item.freqUnit]) / item.freqValue;
   const totalExpenseAnnual = state.expenses.reduce((acc, item) => acc + getAnnualCost(item), 0);
@@ -34,7 +97,7 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
   const displayedSurplus = getDisplayedCost(surplusAnnual);
 
   const groupedExpenses = useMemo(() => {
-    const groups: Record<string, typeof state.expenses> = {};
+    const groups: Record<string, ExpenseItem[]> = {};
     state.expenses.forEach(e => {
       if (!groups[e.category]) groups[e.category] = [];
       groups[e.category].push(e);
@@ -56,13 +119,14 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
         freqVal: item.freqValue,
         freqUnit: item.freqUnit,
         cat: item.category,
-        isMortgageLink: item.isMortgageLink
+        isMortgageLink: item.isMortgageLink,
+        payoffYears: item.payoffYears
      });
   };
 
   const cancelEdit = () => {
      setEditingId(null);
-     setNewExp({ name: '', amount: 0, freqVal: 1, freqUnit: 'month', cat: state.expenseCategories[0], isMortgageLink: false });
+     setNewExp({ name: '', amount: 0, freqVal: 1, freqUnit: 'month', cat: 'Residential Property', isMortgageLink: true, payoffYears: 0 });
   };
 
   const saveExpense = () => {
@@ -79,7 +143,8 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
               freqValue: newExp.freqVal,
               freqUnit: newExp.freqUnit,
               category: newExp.cat,
-              isMortgageLink: e.isMortgageLink 
+              isMortgageLink: newExp.cat === 'Residential Property' ? true : newExp.isMortgageLink,
+              payoffYears: newExp.cat === 'Non-deductible debt' ? newExp.payoffYears : undefined
            } : e)
         }));
      } else {
@@ -91,14 +156,25 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
           freqValue: newExp.freqVal, 
           freqUnit: newExp.freqUnit, 
           category: newExp.cat, 
-          isMortgageLink: newExp.cat === 'Mortgage/Rent'
+          isMortgageLink: newExp.cat === 'Residential Property',
+          payoffYears: newExp.cat === 'Non-deductible debt' ? newExp.payoffYears : undefined
         }]}));
      }
      cancelEdit();
   };
 
+  const isPermanentCategory = (cat: string) => ['Residential Property', 'Non-deductible debt', 'Food'].includes(cat);
+
   return (
     <div className="h-full flex flex-col md:flex-row p-6 gap-6 overflow-y-auto relative">
+      <DebtCalculatorModal 
+        isOpen={showDebtCalc} 
+        onClose={() => setShowDebtCalc(false)} 
+        initialRepayment={newExp.amount}
+        initialFreq={newExp.freqUnit}
+        onCalculate={(years: number) => setNewExp(prev => ({ ...prev, payoffYears: years }))}
+      />
+
       <div className="w-full md:w-1/3 space-y-4">
          
          {/* Edit/Add Form - Conditional Modal Style on Mobile */}
@@ -112,7 +188,7 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
               {!editingId && (
                  <button 
                   onClick={() => setState((s: AppState) => ({...s, userSettings: {...s.userSettings, isRenting: !s.userSettings.isRenting}}))}
-                  className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors ${state.userSettings.isRenting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300'}`}
+                  className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors ${state.userSettings.isRenting ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 text-blue-300' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300'}`}
                  >
                   {state.userSettings.isRenting ? 'I am renting' : 'I live in PPOR'}
                  </button>
@@ -158,17 +234,32 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
                          {state.expenseCategories.map(c => (
                             <div key={c} className="flex justify-between text-xs px-1 text-slate-700 dark:text-slate-300">
                                <span>{c}</span>
-                               {!['Mortgage/Rent','Food'].includes(c) && <button onClick={() => setState((s: AppState) => ({...s, expenseCategories: s.expenseCategories.filter(cat => cat !== c)}))}><X className="w-3 h-3 text-red-400"/></button>}
+                               {!isPermanentCategory(c) && <button onClick={() => setState((s: AppState) => ({...s, expenseCategories: s.expenseCategories.filter(cat => cat !== c)}))}><X className="w-3 h-3 text-red-400"/></button>}
                             </div>
                          ))}
                       </div>
                    </div>
                 ) : (
-                   <select className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-3 md:py-2 text-base md:text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" value={newExp.cat} onChange={e => setNewExp({...newExp, cat: e.target.value})}>
+                   <select className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-3 md:py-2 text-base md:text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" value={newExp.cat} onChange={e => setNewExp({...newExp, cat: e.target.value, isMortgageLink: e.target.value === 'Residential Property'})}>
                       {state.expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
                    </select>
                 )}
              </div>
+
+             {newExp.cat === 'Non-deductible debt' && (
+               <div className="bg-blue-50 dark:bg-blue-900/10 p-2 rounded border border-blue-100 dark:border-blue-900/30 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                      Years until paid-off
+                    </label>
+                    <button onClick={() => setShowDebtCalc(true)} className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded flex items-center gap-1 hover:bg-blue-700 transition-colors">
+                      <Calculator className="w-3 h-3" /> Calculate
+                    </button>
+                  </div>
+                  <input type="number" step="0.1" value={newExp.payoffYears || ''} onChange={e => setNewExp(prev => ({ ...prev, payoffYears: Number(e.target.value) }))} className="w-full text-xs p-2 border rounded bg-white dark:bg-slate-800" placeholder="e.g. 5.5" />
+                  <p className="text-[9px] text-slate-400 italic">This expense will be excluded from the perpetual FIRE target.</p>
+               </div>
+             )}
 
              <div className="flex gap-2 pt-2 md:pt-0">
                {editingId && (
@@ -226,7 +317,7 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
          )}
 
          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-            {Object.entries(groupedExpenses).map(([category, items]) => {
+            {(Object.entries(groupedExpenses) as [string, ExpenseItem[]][]).map(([category, items]) => {
                const catTotalAnnual = items.reduce((acc, i) => acc + getAnnualCost(i), 0);
                const catPercentIncome = netIncomeAnnual > 0 ? (catTotalAnnual / netIncomeAnnual) * 100 : 0;
                
@@ -246,13 +337,18 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
                            
                            return (
                            <div key={item.id} className={`flex items-center justify-between p-2 border-b border-slate-100 dark:border-slate-800 last:border-0 group hover:bg-slate-50 dark:hover:bg-slate-800 ${editingId === item.id ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
-                              <div>
+                              <div className="flex-1">
                                  <div className="flex items-center gap-2">
                                     <p className="font-medium text-slate-800 dark:text-slate-200 text-xs">{item.name}</p>
                                     {!state.userSettings.isRenting && item.isMortgageLink && (
                                        <span title="Linked to Mortgage Projector">
                                           <LinkIcon className="w-3 h-3 text-emerald-500" />
                                        </span>
+                                    )}
+                                    {item.category === 'Non-deductible debt' && item.payoffYears !== undefined && (
+                                      <span className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                                        Ends in {item.payoffYears}y
+                                      </span>
                                     )}
                                  </div>
                                  <div className="flex items-center gap-2 mt-0.5">
@@ -262,7 +358,7 @@ export const ExpenseTab: React.FC<Props> = ({ state, setState, netIncomeAnnual }
                               </div>
                               <div className="flex items-center gap-3">
                                  <p className="font-semibold text-slate-600 dark:text-slate-400 text-xs">{formatCurrency(getDisplayedCost(annualItemCost))}</p>
-                                 {!state.userSettings.isRenting && (
+                                 {!state.userSettings.isRenting && item.category !== 'Residential Property' && (
                                     <button onClick={() => {
                                        const newExps = state.expenses.map(e => e.id === item.id ? { ...e, isMortgageLink: !e.isMortgageLink } : e);
                                        setState({...state, expenses: newExps});
